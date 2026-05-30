@@ -1,0 +1,151 @@
+rules:
+  - rule_id: "STR-001"
+    category: STRUCTURAL
+    severity: HARD_STOP
+    logic_key: "verify_claim_has_minimum_one_line"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Claim must have at least one line item"
+      sw: "Claim must have at least one line item"
+    remediation_i18n:
+      en: "Review and correct: Claim must have at least one line item."
+      sw: "Review and correct: Claim must have at least one line item."
+    is_active: true
+    sort_order: 1
+
+  - rule_id: "STR-002"
+    category: STRUCTURAL
+    severity: HARD_STOP
+    logic_key: "verify_claim_has_documents"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Claim must have at least one document uploaded"
+      sw: "Claim must have at least one document uploaded"
+    remediation_i18n:
+      en: "Review and correct: Claim must have at least one document uploaded."
+      sw: "Review and correct: Claim must have at least one document uploaded."
+    is_active: true
+    sort_order: 2
+
+  - rule_id: "STR-003"
+    category: STRUCTURAL
+    severity: MAJOR
+    logic_key: "verify_all_required_fields_present"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "All mandatory claim fields must be populated"
+      sw: "All mandatory claim fields must be populated"
+    remediation_i18n:
+      en: "Review and correct: All mandatory claim fields must be populated."
+      sw: "Review and correct: All mandatory claim fields must be populated."
+    is_active: true
+    sort_order: 3
+
+  - rule_id: "STR-004"
+    category: STRUCTURAL
+    severity: MAJOR
+    logic_key: "verify_dates_logically_consistent"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Admission date â‰¤ discharge date, service dates within admission period"
+      sw: "Admission date â‰¤ discharge date, service dates within admission period"
+    remediation_i18n:
+      en: "Review and correct: Admission date â‰¤ discharge date, service dates within admission period."
+      sw: "Review and correct: Admission date â‰¤ discharge date, service dates within admission period."
+    is_active: true
+    sort_order: 4
+
+  - rule_id: "STR-005"
+    category: STRUCTURAL
+    severity: MINOR
+    logic_key: "verify_line_item_numbering"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Line items should be sequentially numbered"
+      sw: "Line items should be sequentially numbered"
+    remediation_i18n:
+      en: "Review and correct: Line items should be sequentially numbered."
+      sw: "Review and correct: Line items should be sequentially numbered."
+    is_active: true
+    sort_order: 5
+
+  - rule_id: "STR-006"
+    category: STRUCTURAL
+    severity: HARD_STOP
+    logic_key: "verify_claim_not_duplicate"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Deduplication check (patient + facility + date + diagnosis)"
+      sw: "Deduplication check (patient + facility + date + diagnosis)"
+    remediation_i18n:
+      en: "Review and correct: Deduplication check (patient + facility + date + diagnosis)."
+      sw: "Review and correct: Deduplication check (patient + facility + date + diagnosis)."
+    is_active: true
+    sort_order: 6
+
+  - rule_id: "STR-007"
+    category: STRUCTURAL
+    severity: MAJOR
+    logic_key: "verify_extraction_completeness"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Minimum extraction confidence threshold met"
+      sw: "Minimum extraction confidence threshold met"
+    remediation_i18n:
+      en: "Review and correct: Minimum extraction confidence threshold met."
+      sw: "Review and correct: Minimum extraction confidence threshold met."
+    is_active: true
+    sort_order: 7
+
+  - rule_id: "STR-008"
+    category: STRUCTURAL
+    severity: MINOR
+    logic_key: "verify_document_page_count_reasonable"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Total pages should not exceed 50 per claim"
+      sw: "Total pages should not exceed 50 per claim"
+    remediation_i18n:
+      en: "Review and correct: Total pages should not exceed 50 per claim."
+      sw: "Review and correct: Total pages should not exceed 50 per claim."
+    is_active: true
+    sort_order: 8
+
+  - rule_id: "STR-009"
+    category: STRUCTURAL
+    severity: HARD_STOP
+    logic_key: "verify_rulepack_integrity"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Rulepack checksum must match expected value"
+      sw: "Rulepack checksum must match expected value"
+    remediation_i18n:
+      en: "Review and correct: Rulepack checksum must match expected value."
+      sw: "Review and correct: Rulepack checksum must match expected value."
+    is_active: true
+    sort_order: 9
+
+  - rule_id: "STR-010"
+    category: STRUCTURAL
+    severity: INFO
+    logic_key: "verify_overall_claim_quality_score"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Composite quality score across all categories"
+      sw: "Composite quality score across all categories"
+    remediation_i18n:
+      en: "Review and correct: Composite quality score across all categories."
+      sw: "Review and correct: Composite quality score across all categories."
+    is_active: true
+    sort_order: 10
+

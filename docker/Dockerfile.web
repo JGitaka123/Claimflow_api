@@ -1,0 +1,24 @@
+# syntax=docker/dockerfile:1.7
+
+FROM node:20-alpine AS build
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY packages ./packages
+RUN pnpm install --frozen-lockfile --prod=false
+RUN pnpm --filter @claimflow/web build
+
+FROM node:20-alpine AS runtime
+RUN addgroup -S claimflow && adduser -S claimflow -G claimflow
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+COPY --from=build /app/packages/web/.next/standalone ./
+COPY --from=build /app/packages/web/.next/static ./packages/web/.next/static
+USER claimflow
+EXPOSE 3000
+CMD ["node", "packages/web/server.js"]

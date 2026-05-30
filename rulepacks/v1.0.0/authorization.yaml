@@ -1,0 +1,226 @@
+rules:
+  - rule_id: "AUT-001"
+    category: AUTHORIZATION
+    severity: HARD_STOP
+    logic_key: "verify_preauth_exists_if_required"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Preauthorization must exist for services requiring it"
+      sw: "Preauthorization must exist for services requiring it"
+    remediation_i18n:
+      en: "Review and correct: Preauthorization must exist for services requiring it."
+      sw: "Review and correct: Preauthorization must exist for services requiring it."
+    is_active: true
+    sort_order: 1
+
+  - rule_id: "AUT-002"
+    category: AUTHORIZATION
+    severity: HARD_STOP
+    logic_key: "verify_preauth_number_valid"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Preauthorization number must be valid (format check)"
+      sw: "Preauthorization number must be valid (format check)"
+    remediation_i18n:
+      en: "Review and correct: Preauthorization number must be valid (format check)."
+      sw: "Review and correct: Preauthorization number must be valid (format check)."
+    is_active: true
+    sort_order: 2
+
+  - rule_id: "AUT-003"
+    category: AUTHORIZATION
+    severity: HARD_STOP
+    logic_key: "verify_preauth_not_expired"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Preauthorization must not be expired"
+      sw: "Preauthorization must not be expired"
+    remediation_i18n:
+      en: "Review and correct: Preauthorization must not be expired."
+      sw: "Review and correct: Preauthorization must not be expired."
+    is_active: true
+    sort_order: 3
+
+  - rule_id: "AUT-004"
+    category: AUTHORIZATION
+    severity: HARD_STOP
+    logic_key: "verify_preauth_covers_services"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Preauthorized services must match claimed services"
+      sw: "Preauthorized services must match claimed services"
+    remediation_i18n:
+      en: "Review and correct: Preauthorized services must match claimed services."
+      sw: "Review and correct: Preauthorized services must match claimed services."
+    is_active: true
+    sort_order: 4
+
+  - rule_id: "AUT-005"
+    category: AUTHORIZATION
+    severity: MAJOR
+    logic_key: "verify_preauth_facility_matches"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Preauth facility must match claim facility"
+      sw: "Preauth facility must match claim facility"
+    remediation_i18n:
+      en: "Review and correct: Preauth facility must match claim facility."
+      sw: "Review and correct: Preauth facility must match claim facility."
+    is_active: true
+    sort_order: 5
+
+  - rule_id: "AUT-006"
+    category: AUTHORIZATION
+    severity: MAJOR
+    logic_key: "verify_preauth_patient_matches"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Preauth patient must match claim patient"
+      sw: "Preauth patient must match claim patient"
+    remediation_i18n:
+      en: "Review and correct: Preauth patient must match claim patient."
+      sw: "Review and correct: Preauth patient must match claim patient."
+    is_active: true
+    sort_order: 6
+
+  - rule_id: "AUT-007"
+    category: AUTHORIZATION
+    severity: HARD_STOP
+    logic_key: "verify_benefit_package_covers_service"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Claimed services must be covered under patient's benefit package"
+      sw: "Claimed services must be covered under patient's benefit package"
+    remediation_i18n:
+      en: "Review and correct: Claimed services must be covered under patient's benefit package."
+      sw: "Review and correct: Claimed services must be covered under patient's benefit package."
+    is_active: true
+    sort_order: 7
+
+  - rule_id: "AUT-008"
+    category: AUTHORIZATION
+    severity: MAJOR
+    logic_key: "verify_referral_authorization"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Referral must be authorized by referring facility"
+      sw: "Referral must be authorized by referring facility"
+    remediation_i18n:
+      en: "Review and correct: Referral must be authorized by referring facility."
+      sw: "Review and correct: Referral must be authorized by referring facility."
+    is_active: true
+    sort_order: 8
+
+  - rule_id: "AUT-009"
+    category: AUTHORIZATION
+    severity: HARD_STOP
+    logic_key: "verify_claim_within_7_day_window"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Claim must be submitted within 7 days of service/discharge"
+      sw: "Claim must be submitted within 7 days of service/discharge"
+    remediation_i18n:
+      en: "Review and correct: Claim must be submitted within 7 days of service/discharge."
+      sw: "Review and correct: Claim must be submitted within 7 days of service/discharge."
+    is_active: true
+    sort_order: 9
+
+  - rule_id: "AUT-010"
+    category: AUTHORIZATION
+    severity: MAJOR
+    logic_key: "verify_no_duplicate_claim"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Check for potential duplicate claims (dedup hash)"
+      sw: "Check for potential duplicate claims (dedup hash)"
+    remediation_i18n:
+      en: "Review and correct: Check for potential duplicate claims (dedup hash)."
+      sw: "Review and correct: Check for potential duplicate claims (dedup hash)."
+    is_active: true
+    sort_order: 10
+
+  - rule_id: "AUT-011"
+    category: AUTHORIZATION
+    severity: MINOR
+    logic_key: "verify_copay_documented"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Co-payment amount should be documented if applicable"
+      sw: "Co-payment amount should be documented if applicable"
+    remediation_i18n:
+      en: "Review and correct: Co-payment amount should be documented if applicable."
+      sw: "Review and correct: Co-payment amount should be documented if applicable."
+    is_active: true
+    sort_order: 11
+
+  - rule_id: "AUT-012"
+    category: AUTHORIZATION
+    severity: MAJOR
+    logic_key: "verify_emergency_retroauth"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Emergency claims must have retroactive authorization documentation"
+      sw: "Emergency claims must have retroactive authorization documentation"
+    remediation_i18n:
+      en: "Review and correct: Emergency claims must have retroactive authorization documentation."
+      sw: "Review and correct: Emergency claims must have retroactive authorization documentation."
+    is_active: true
+    sort_order: 12
+
+  - rule_id: "AUT-013"
+    category: AUTHORIZATION
+    severity: HARD_STOP
+    logic_key: "verify_patient_coverage_active_at_service"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Patient coverage must be active on date of service"
+      sw: "Patient coverage must be active on date of service"
+    remediation_i18n:
+      en: "Review and correct: Patient coverage must be active on date of service."
+      sw: "Review and correct: Patient coverage must be active on date of service."
+    is_active: true
+    sort_order: 13
+
+  - rule_id: "AUT-014"
+    category: AUTHORIZATION
+    severity: MINOR
+    logic_key: "verify_referral_chain_complete"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Full referral chain documented for tertiary referrals"
+      sw: "Full referral chain documented for tertiary referrals"
+    remediation_i18n:
+      en: "Review and correct: Full referral chain documented for tertiary referrals."
+      sw: "Review and correct: Full referral chain documented for tertiary referrals."
+    is_active: true
+    sort_order: 14
+
+  - rule_id: "AUT-015"
+    category: AUTHORIZATION
+    severity: INFO
+    logic_key: "verify_authorization_completeness_score"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Authorization documentation completeness score"
+      sw: "Authorization documentation completeness score"
+    remediation_i18n:
+      en: "Review and correct: Authorization documentation completeness score."
+      sw: "Review and correct: Authorization documentation completeness score."
+    is_active: true
+    sort_order: 15
+

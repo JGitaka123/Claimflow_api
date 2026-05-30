@@ -1,0 +1,526 @@
+rules:
+  - rule_id: "DOC-001"
+    category: DOCUMENTATION
+    severity: HARD_STOP
+    logic_key: "verify_claim_form_present"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "SHA claim form (OP/IP/Maternity) must be present"
+      sw: "SHA claim form (OP/IP/Maternity) must be present"
+    remediation_i18n:
+      en: "Review and correct: SHA claim form (OP/IP/Maternity) must be present."
+      sw: "Review and correct: SHA claim form (OP/IP/Maternity) must be present."
+    is_active: true
+    sort_order: 1
+
+  - rule_id: "DOC-002"
+    category: DOCUMENTATION
+    severity: HARD_STOP
+    logic_key: "verify_claim_form_type_matches"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Claim form type must match claim type (OP form for OP claim)"
+      sw: "Claim form type must match claim type (OP form for OP claim)"
+    remediation_i18n:
+      en: "Review and correct: Claim form type must match claim type (OP form for OP claim)."
+      sw: "Review and correct: Claim form type must match claim type (OP form for OP claim)."
+    is_active: true
+    sort_order: 2
+
+  - rule_id: "DOC-003"
+    category: DOCUMENTATION
+    severity: HARD_STOP
+    logic_key: "verify_physician_signature_present"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Physician signature detected on claim form"
+      sw: "Physician signature detected on claim form"
+    remediation_i18n:
+      en: "Review and correct: Physician signature detected on claim form."
+      sw: "Review and correct: Physician signature detected on claim form."
+    is_active: true
+    sort_order: 3
+
+  - rule_id: "DOC-004"
+    category: DOCUMENTATION
+    severity: HARD_STOP
+    logic_key: "verify_physician_stamp_present"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Physician stamp/seal detected on claim form"
+      sw: "Physician stamp/seal detected on claim form"
+    remediation_i18n:
+      en: "Review and correct: Physician stamp/seal detected on claim form."
+      sw: "Review and correct: Physician stamp/seal detected on claim form."
+    is_active: true
+    sort_order: 4
+
+  - rule_id: "DOC-005"
+    category: DOCUMENTATION
+    severity: MAJOR
+    logic_key: "verify_claim_form_date_present"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Date on claim form must be present and legible"
+      sw: "Date on claim form must be present and legible"
+    remediation_i18n:
+      en: "Review and correct: Date on claim form must be present and legible."
+      sw: "Review and correct: Date on claim form must be present and legible."
+    is_active: true
+    sort_order: 5
+
+  - rule_id: "DOC-006"
+    category: DOCUMENTATION
+    severity: MAJOR
+    logic_key: "verify_claim_form_date_matches_admission"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Claim form date must match admission/visit date"
+      sw: "Claim form date must match admission/visit date"
+    remediation_i18n:
+      en: "Review and correct: Claim form date must match admission/visit date."
+      sw: "Review and correct: Claim form date must match admission/visit date."
+    is_active: true
+    sort_order: 6
+
+  - rule_id: "DOC-007"
+    category: DOCUMENTATION
+    severity: HARD_STOP
+    logic_key: "verify_discharge_summary_present_ip"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Discharge summary required for inpatient claims"
+      sw: "Discharge summary required for inpatient claims"
+    remediation_i18n:
+      en: "Review and correct: Discharge summary required for inpatient claims."
+      sw: "Review and correct: Discharge summary required for inpatient claims."
+    is_active: true
+    sort_order: 7
+
+  - rule_id: "DOC-008"
+    category: DOCUMENTATION
+    severity: MAJOR
+    logic_key: "verify_discharge_summary_signed"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Discharge summary must be signed by physician"
+      sw: "Discharge summary must be signed by physician"
+    remediation_i18n:
+      en: "Review and correct: Discharge summary must be signed by physician."
+      sw: "Review and correct: Discharge summary must be signed by physician."
+    is_active: true
+    sort_order: 8
+
+  - rule_id: "DOC-009"
+    category: DOCUMENTATION
+    severity: HARD_STOP
+    logic_key: "verify_physician_notes_present"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Clinical/physician notes required"
+      sw: "Clinical/physician notes required"
+    remediation_i18n:
+      en: "Review and correct: Clinical/physician notes required."
+      sw: "Review and correct: Clinical/physician notes required."
+    is_active: true
+    sort_order: 9
+
+  - rule_id: "DOC-010"
+    category: DOCUMENTATION
+    severity: MAJOR
+    logic_key: "verify_diagnosis_documented_in_notes"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Diagnosis must appear in physician notes"
+      sw: "Diagnosis must appear in physician notes"
+    remediation_i18n:
+      en: "Review and correct: Diagnosis must appear in physician notes."
+      sw: "Review and correct: Diagnosis must appear in physician notes."
+    is_active: true
+    sort_order: 10
+
+  - rule_id: "DOC-011"
+    category: DOCUMENTATION
+    severity: MAJOR
+    logic_key: "verify_treatment_plan_documented"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Treatment plan or procedures must be documented"
+      sw: "Treatment plan or procedures must be documented"
+    remediation_i18n:
+      en: "Review and correct: Treatment plan or procedures must be documented."
+      sw: "Review and correct: Treatment plan or procedures must be documented."
+    is_active: true
+    sort_order: 11
+
+  - rule_id: "DOC-012"
+    category: DOCUMENTATION
+    severity: HARD_STOP
+    logic_key: "verify_lab_results_present_if_claimed"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Lab results required if lab services claimed"
+      sw: "Lab results required if lab services claimed"
+    remediation_i18n:
+      en: "Review and correct: Lab results required if lab services claimed."
+      sw: "Review and correct: Lab results required if lab services claimed."
+    is_active: true
+    sort_order: 12
+
+  - rule_id: "DOC-013"
+    category: DOCUMENTATION
+    severity: MAJOR
+    logic_key: "verify_lab_results_from_accredited"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Lab results should be from accredited facility"
+      sw: "Lab results should be from accredited facility"
+    remediation_i18n:
+      en: "Review and correct: Lab results should be from accredited facility."
+      sw: "Review and correct: Lab results should be from accredited facility."
+    is_active: true
+    sort_order: 13
+
+  - rule_id: "DOC-014"
+    category: DOCUMENTATION
+    severity: HARD_STOP
+    logic_key: "verify_prescription_present_if_pharmacy"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Prescription required if pharmacy items claimed"
+      sw: "Prescription required if pharmacy items claimed"
+    remediation_i18n:
+      en: "Review and correct: Prescription required if pharmacy items claimed."
+      sw: "Review and correct: Prescription required if pharmacy items claimed."
+    is_active: true
+    sort_order: 14
+
+  - rule_id: "DOC-015"
+    category: DOCUMENTATION
+    severity: MAJOR
+    logic_key: "verify_prescription_signed"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Prescription must be signed by authorized prescriber"
+      sw: "Prescription must be signed by authorized prescriber"
+    remediation_i18n:
+      en: "Review and correct: Prescription must be signed by authorized prescriber."
+      sw: "Review and correct: Prescription must be signed by authorized prescriber."
+    is_active: true
+    sort_order: 15
+
+  - rule_id: "DOC-016"
+    category: DOCUMENTATION
+    severity: HARD_STOP
+    logic_key: "verify_referral_letter_if_referred"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Referral letter required for referred patients"
+      sw: "Referral letter required for referred patients"
+    remediation_i18n:
+      en: "Review and correct: Referral letter required for referred patients."
+      sw: "Review and correct: Referral letter required for referred patients."
+    is_active: true
+    sort_order: 16
+
+  - rule_id: "DOC-017"
+    category: DOCUMENTATION
+    severity: MAJOR
+    logic_key: "verify_referral_letter_valid"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Referral letter must be from recognized facility"
+      sw: "Referral letter must be from recognized facility"
+    remediation_i18n:
+      en: "Review and correct: Referral letter must be from recognized facility."
+      sw: "Review and correct: Referral letter must be from recognized facility."
+    is_active: true
+    sort_order: 17
+
+  - rule_id: "DOC-018"
+    category: DOCUMENTATION
+    severity: HARD_STOP
+    logic_key: "verify_consent_form_if_surgical"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Surgical consent form required for surgical claims"
+      sw: "Surgical consent form required for surgical claims"
+    remediation_i18n:
+      en: "Review and correct: Surgical consent form required for surgical claims."
+      sw: "Review and correct: Surgical consent form required for surgical claims."
+    is_active: true
+    sort_order: 18
+
+  - rule_id: "DOC-019"
+    category: DOCUMENTATION
+    severity: MAJOR
+    logic_key: "verify_consent_form_signed_by_patient"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Consent form must have patient/guardian signature"
+      sw: "Consent form must have patient/guardian signature"
+    remediation_i18n:
+      en: "Review and correct: Consent form must have patient/guardian signature."
+      sw: "Review and correct: Consent form must have patient/guardian signature."
+    is_active: true
+    sort_order: 19
+
+  - rule_id: "DOC-020"
+    category: DOCUMENTATION
+    severity: HARD_STOP
+    logic_key: "verify_preauth_form_if_required"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Preauthorization form required for applicable services"
+      sw: "Preauthorization form required for applicable services"
+    remediation_i18n:
+      en: "Review and correct: Preauthorization form required for applicable services."
+      sw: "Review and correct: Preauthorization form required for applicable services."
+    is_active: true
+    sort_order: 20
+
+  - rule_id: "DOC-021"
+    category: DOCUMENTATION
+    severity: MAJOR
+    logic_key: "verify_operative_note_if_surgical"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Operative note required for surgical claims"
+      sw: "Operative note required for surgical claims"
+    remediation_i18n:
+      en: "Review and correct: Operative note required for surgical claims."
+      sw: "Review and correct: Operative note required for surgical claims."
+    is_active: true
+    sort_order: 21
+
+  - rule_id: "DOC-022"
+    category: DOCUMENTATION
+    severity: MAJOR
+    logic_key: "verify_anesthesia_record_if_applicable"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Anesthesia record required for GA procedures"
+      sw: "Anesthesia record required for GA procedures"
+    remediation_i18n:
+      en: "Review and correct: Anesthesia record required for GA procedures."
+      sw: "Review and correct: Anesthesia record required for GA procedures."
+    is_active: true
+    sort_order: 22
+
+  - rule_id: "DOC-023"
+    category: DOCUMENTATION
+    severity: MINOR
+    logic_key: "verify_nursing_notes_present_ip"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Nursing notes recommended for inpatient claims"
+      sw: "Nursing notes recommended for inpatient claims"
+    remediation_i18n:
+      en: "Review and correct: Nursing notes recommended for inpatient claims."
+      sw: "Review and correct: Nursing notes recommended for inpatient claims."
+    is_active: true
+    sort_order: 23
+
+  - rule_id: "DOC-024"
+    category: DOCUMENTATION
+    severity: MAJOR
+    logic_key: "verify_radiology_report_if_claimed"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Radiology report required if imaging claimed"
+      sw: "Radiology report required if imaging claimed"
+    remediation_i18n:
+      en: "Review and correct: Radiology report required if imaging claimed."
+      sw: "Review and correct: Radiology report required if imaging claimed."
+    is_active: true
+    sort_order: 24
+
+  - rule_id: "DOC-025"
+    category: DOCUMENTATION
+    severity: MINOR
+    logic_key: "verify_all_pages_legible"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "All document pages must pass quality threshold"
+      sw: "All document pages must pass quality threshold"
+    remediation_i18n:
+      en: "Review and correct: All document pages must pass quality threshold."
+      sw: "Review and correct: All document pages must pass quality threshold."
+    is_active: true
+    sort_order: 25
+
+  - rule_id: "DOC-026"
+    category: DOCUMENTATION
+    severity: MAJOR
+    logic_key: "verify_no_critical_fields_missing"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Mandatory fields on claim form must be filled"
+      sw: "Mandatory fields on claim form must be filled"
+    remediation_i18n:
+      en: "Review and correct: Mandatory fields on claim form must be filled."
+      sw: "Review and correct: Mandatory fields on claim form must be filled."
+    is_active: true
+    sort_order: 26
+
+  - rule_id: "DOC-027"
+    category: DOCUMENTATION
+    severity: MINOR
+    logic_key: "verify_document_dates_consistent"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Dates across documents should be consistent"
+      sw: "Dates across documents should be consistent"
+    remediation_i18n:
+      en: "Review and correct: Dates across documents should be consistent."
+      sw: "Review and correct: Dates across documents should be consistent."
+    is_active: true
+    sort_order: 27
+
+  - rule_id: "DOC-028"
+    category: DOCUMENTATION
+    severity: MAJOR
+    logic_key: "verify_patient_name_on_all_docs"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Patient name must appear on all clinical documents"
+      sw: "Patient name must appear on all clinical documents"
+    remediation_i18n:
+      en: "Review and correct: Patient name must appear on all clinical documents."
+      sw: "Review and correct: Patient name must appear on all clinical documents."
+    is_active: true
+    sort_order: 28
+
+  - rule_id: "DOC-029"
+    category: DOCUMENTATION
+    severity: MINOR
+    logic_key: "verify_facility_header_on_clinical_docs"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Clinical docs should have facility letterhead"
+      sw: "Clinical docs should have facility letterhead"
+    remediation_i18n:
+      en: "Review and correct: Clinical docs should have facility letterhead."
+      sw: "Review and correct: Clinical docs should have facility letterhead."
+    is_active: true
+    sort_order: 29
+
+  - rule_id: "DOC-030"
+    category: DOCUMENTATION
+    severity: HARD_STOP
+    logic_key: "verify_maternity_delivery_record"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Delivery record required for maternity claims"
+      sw: "Delivery record required for maternity claims"
+    remediation_i18n:
+      en: "Review and correct: Delivery record required for maternity claims."
+      sw: "Review and correct: Delivery record required for maternity claims."
+    is_active: true
+    sort_order: 30
+
+  - rule_id: "DOC-031"
+    category: DOCUMENTATION
+    severity: MAJOR
+    logic_key: "verify_baby_birth_notification"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Birth notification required for delivery claims"
+      sw: "Birth notification required for delivery claims"
+    remediation_i18n:
+      en: "Review and correct: Birth notification required for delivery claims."
+      sw: "Review and correct: Birth notification required for delivery claims."
+    is_active: true
+    sort_order: 31
+
+  - rule_id: "DOC-032"
+    category: DOCUMENTATION
+    severity: MINOR
+    logic_key: "verify_anc_card_if_maternity"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "ANC card recommended for maternity claims"
+      sw: "ANC card recommended for maternity claims"
+    remediation_i18n:
+      en: "Review and correct: ANC card recommended for maternity claims."
+      sw: "Review and correct: ANC card recommended for maternity claims."
+    is_active: true
+    sort_order: 32
+
+  - rule_id: "DOC-033"
+    category: DOCUMENTATION
+    severity: MAJOR
+    logic_key: "verify_document_not_expired"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Document dates must be within claim period"
+      sw: "Document dates must be within claim period"
+    remediation_i18n:
+      en: "Review and correct: Document dates must be within claim period."
+      sw: "Review and correct: Document dates must be within claim period."
+    is_active: true
+    sort_order: 33
+
+  - rule_id: "DOC-034"
+    category: DOCUMENTATION
+    severity: MINOR
+    logic_key: "verify_no_duplicate_documents"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Warn if identical documents uploaded twice"
+      sw: "Warn if identical documents uploaded twice"
+    remediation_i18n:
+      en: "Review and correct: Warn if identical documents uploaded twice."
+      sw: "Review and correct: Warn if identical documents uploaded twice."
+    is_active: true
+    sort_order: 34
+
+  - rule_id: "DOC-035"
+    category: DOCUMENTATION
+    severity: INFO
+    logic_key: "verify_document_completeness_score"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Overall documentation completeness percentage"
+      sw: "Overall documentation completeness percentage"
+    remediation_i18n:
+      en: "Review and correct: Overall documentation completeness percentage."
+      sw: "Review and correct: Overall documentation completeness percentage."
+    is_active: true
+    sort_order: 35
+

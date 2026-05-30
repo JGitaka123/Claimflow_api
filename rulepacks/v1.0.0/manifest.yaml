@@ -1,0 +1,4 @@
+version: "1.0.0"
+sha_policy_version: "LN-56-2025"
+description: "ClaimFlow deterministic rulepack v1.0.0 (full catalog with Addendum C FIN-021)"
+rule_count: 121

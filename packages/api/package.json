@@ -1,0 +1,56 @@
+{
+  "name": "@claimflow/api",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./src/server.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "typecheck": "tsc -p tsconfig.typecheck.json",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "test:integration": "vitest run src/__tests__/claims.integration.test.ts src/__tests__/state-machine.integration.test.ts src/__tests__/documents.integration.test.ts src/__tests__/audit-pipeline.integration.test.ts src/__tests__/extraction.integration.test.ts src/__tests__/batch-audit.integration.test.ts src/__tests__/exports.integration.test.ts src/__tests__/auth.integration.test.ts src/__tests__/rbac.integration.test.ts src/__tests__/admin-users.integration.test.ts src/__tests__/preauthorization.integration.test.ts",
+    "test:performance": "vitest run src/__tests__/performance.integration.test.ts",
+    "test:integration:testcontainers": "vitest run -c vitest.testcontainers.config.ts"
+  },
+  "dependencies": {
+    "@claimflow/rule-engine": "workspace:*",
+    "@claimflow/shared": "workspace:*",
+    "@fastify/cors": "^9.0.0",
+    "@fastify/helmet": "^11.0.0",
+    "@fastify/multipart": "^8.3.0",
+    "@fastify/rate-limit": "^9.1.0",
+    "@react-pdf/renderer": "^4.3.1",
+    "archiver": "^7.0.1",
+    "bcryptjs": "^2.4.3",
+    "crypto-js": "^4.2.0",
+    "dotenv": "^16.4.0",
+    "fastify": "^4.28.0",
+    "fastify-plugin": "^5.0.0",
+    "file-type": "^19.6.0",
+    "jsonwebtoken": "^9.0.0",
+    "otplib": "^12.0.0",
+    "pg": "^8.12.0",
+    "pg-boss": "^9.0.0",
+    "pino": "^9.2.0",
+    "react": "^18.3.1",
+    "tsx": "^4.16.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@testcontainers/postgresql": "^10.28.0",
+    "@types/archiver": "^6.0.3",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.0",
+    "@types/node": "^20.14.0",
+    "@types/pg": "^8.11.0",
+    "@types/react": "^18.3.12",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  },
+  "type": "module"
+}
+
+
+

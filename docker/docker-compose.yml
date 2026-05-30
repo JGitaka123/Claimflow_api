@@ -1,0 +1,124 @@
+name: claimflow
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: claimflow
+      POSTGRES_USER: claimflow
+      POSTGRES_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD required}"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./data/backups/wal:/var/lib/postgresql/wal_archive
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U claimflow -d claimflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2'
+    command: >
+      postgres
+      -c wal_level=replica
+      -c archive_mode=on
+      -c archive_command='cp %p /var/lib/postgresql/wal_archive/%f'
+      -c max_connections=100
+      -c shared_buffers=1GB
+      -c work_mem=16MB
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${API_PORT:-8080}:8080"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgres://claimflow:${DB_PASSWORD}@postgres:5432/claimflow"
+      STORAGE_PATH: /data
+      ML_SERVICE_URL: http://ml:8000
+      RULEPACK_DIR: /data/rulepacks
+      KEY_PATH: /etc/claimflow/keys
+      LOG_LEVEL: info
+      REQUIRE_MFA: "true"
+      LICENSE_TOKEN: "${LICENSE_TOKEN}"
+      CONTROL_PLANE_URL: "${CONTROL_PLANE_URL:-}"
+      SYNC_GOVERNANCE_MODE: "${SYNC_MODE:-METRICS_ONLY}"
+      RATE_LIMIT_RPM: "100"
+      MAX_UPLOAD_SIZE_MB: "50"
+    volumes:
+      - app_data:/data
+      - keys:/etc/claimflow/keys:ro
+      - rulepacks:/data/rulepacks:ro
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: "http://api:8080"
+      NEXT_PUBLIC_DEFAULT_LOCALE: en
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  ml:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.ml
+    restart: unless-stopped
+    ports:
+      - "${ML_PORT:-8000}:8000"
+    environment:
+      STORAGE_PATH: /data
+      OCR_ENGINE: "tesseract+paddleocr"
+      CONF_THRESHOLD_HIGH: "${CONF_HIGH:-0.85}"
+      CONF_THRESHOLD_LOW: "${CONF_LOW:-0.60}"
+      MAX_PAGES_PER_REQUEST: "50"
+      PROCESSING_TIMEOUT_SECONDS: "60"
+    volumes:
+      - app_data:/data
+      - models:/data/models:ro
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+          cpus: '4'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  pg_data:
+  app_data:
+  keys:
+  rulepacks:
+  models:

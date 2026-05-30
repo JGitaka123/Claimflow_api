@@ -1,0 +1,61 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+.next/
+out/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Keys (NEVER commit)
+*.pem
+*.key
+keys/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker/data/
+
+# Test coverage
+coverage/
+.nyc_output/
+htmlcov/
+
+# Logs
+*.log
+logs/
+
+# Data (local storage)
+/data/
+
+# Python virtual env
+venv/
+.venv/
+*.egg-info/
+
+# Turborepo / build cache
+.turbo/
+tsconfig.tsbuildinfo
+
+# Playwright
+playwright-report/
+test-results/

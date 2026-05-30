@@ -1,0 +1,38 @@
+{
+  "name": "claimflow",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SHA Claims Documentation Audit Platform",
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm -r --parallel dev",
+    "test": "pnpm -r test",
+    "test:coverage": "pnpm -r test -- --coverage",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "migrate": "bash scripts/migrate.sh",
+    "setup:first-run": "bash scripts/setup.sh",
+    "setup:first-run:non-interactive": "bash scripts/setup.sh --non-interactive",
+    "seed:test-data": "bash scripts/seed-test-data.sh",
+    "backup": "bash scripts/backup.sh",
+    "restore": "bash scripts/restore.sh",
+    "verify:backup-restore": "bash scripts/verify-backup-restore.sh",
+    "perf:api": "pnpm --filter @claimflow/api test:performance",
+    "clean": "pnpm -r exec -- rm -rf dist node_modules"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "packageManager": "pnpm@10.30.3",
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^20.14.0"
+  }
+}
+
+
+
+
+
+

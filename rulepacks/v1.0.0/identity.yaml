@@ -1,0 +1,225 @@
+﻿rules:
+  - rule_id: "IDN-001"
+    category: IDENTITY
+    severity: HARD_STOP
+    logic_key: "verify_patient_sha_id_exists"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Patient SHA ID must exist in Client Registry"
+      sw: "Nambari ya SHA ya mgonjwa lazima ipatikane kwenye sajili"
+    remediation_i18n:
+      en: "Verify the patient SHA ID against the SHA client registry before submission."
+      sw: "Thibitisha nambari ya SHA ya mgonjwa kwenye sajili kabla ya kutuma dai."
+    is_active: true
+    sort_order: 1
+
+  - rule_id: "IDN-002"
+    category: IDENTITY
+    severity: HARD_STOP
+    logic_key: "verify_patient_sha_id_format"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Patient SHA ID must match format CRxxxxxxxxx-x"
+      sw: "Nambari ya SHA ya mgonjwa lazima ifuate muundo CRxxxxxxxxx-x"
+    remediation_i18n:
+      en: "Correct the SHA ID format and ensure it starts with CR."
+      sw: "Sahihisha muundo wa nambari ya SHA na uhakikishe inaanza na CR."
+    is_active: true
+    sort_order: 2
+
+  - rule_id: "IDN-003"
+    category: IDENTITY
+    severity: HARD_STOP
+    logic_key: "verify_patient_eligibility_active"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Patient must have active SHA coverage"
+      sw: "Mgonjwa lazima awe na bima hai ya SHA"
+    remediation_i18n:
+      en: "Confirm active eligibility status before claim submission."
+      sw: "Thibitisha ustahiki wa bima kabla ya kutuma dai."
+    is_active: true
+    sort_order: 3
+
+  - rule_id: "IDN-004"
+    category: IDENTITY
+    severity: MAJOR
+    logic_key: "verify_patient_name_matches_registry"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Patient name on claim should match client registry"
+      sw: "Jina la mgonjwa kwenye dai linapaswa kufanana na sajili"
+    remediation_i18n:
+      en: "Review spelling and naming order to match registry records."
+      sw: "Kagua tahajia na mpangilio wa jina ili lifanane na sajili."
+    is_active: true
+    sort_order: 4
+
+  - rule_id: "IDN-005"
+    category: IDENTITY
+    severity: HARD_STOP
+    logic_key: "verify_national_id_present"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "National ID or birth certificate number is required"
+      sw: "Nambari ya kitambulisho au cheti cha kuzaliwa inahitajika"
+    remediation_i18n:
+      en: "Capture a valid identification number for the patient."
+      sw: "Weka nambari halali ya utambulisho wa mgonjwa."
+    is_active: true
+    sort_order: 5
+
+  - rule_id: "IDN-006"
+    category: IDENTITY
+    severity: MAJOR
+    logic_key: "verify_patient_gender_consistent"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Gender on claim must be consistent across documents"
+      sw: "Jinsia kwenye dai lazima ifanane kwenye nyaraka zote"
+    remediation_i18n:
+      en: "Resolve gender mismatches between claim and supporting documents."
+      sw: "Rekebisha utofauti wa jinsia kati ya dai na nyaraka."
+    is_active: true
+    sort_order: 6
+
+  - rule_id: "IDN-007"
+    category: IDENTITY
+    severity: MAJOR
+    logic_key: "verify_patient_dob_consistent"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Date of birth must be consistent across documents"
+      sw: "Tarehe ya kuzaliwa lazima ifanane kwenye nyaraka zote"
+    remediation_i18n:
+      en: "Reconcile date-of-birth differences before final review."
+      sw: "Linganishwa tofauti za tarehe ya kuzaliwa kabla ya mapitio ya mwisho."
+    is_active: true
+    sort_order: 7
+
+  - rule_id: "IDN-008"
+    category: IDENTITY
+    severity: HARD_STOP
+    logic_key: "verify_facility_sha_code_valid"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Facility must be registered in Facility Registry"
+      sw: "Kituo lazima kisajiliwe kwenye sajili ya vituo"
+    remediation_i18n:
+      en: "Verify facility SHA code and registration status."
+      sw: "Thibitisha msimbo wa SHA wa kituo na hali ya usajili."
+    is_active: true
+    sort_order: 8
+
+  - rule_id: "IDN-009"
+    category: IDENTITY
+    severity: HARD_STOP
+    logic_key: "verify_facility_tier_matches"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Facility tier in claim must match Facility Registry"
+      sw: "Ngazi ya kituo kwenye dai lazima ifanane na sajili"
+    remediation_i18n:
+      en: "Use the facility tier recorded in SHA facility registry."
+      sw: "Tumia ngazi ya kituo iliyo kwenye sajili ya SHA."
+    is_active: true
+    sort_order: 9
+
+  - rule_id: "IDN-010"
+    category: IDENTITY
+    severity: HARD_STOP
+    logic_key: "verify_practitioner_registered"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Treating practitioner must exist in Health Worker Registry"
+      sw: "Mtoa huduma lazima apatikane kwenye sajili ya wahudumu"
+    remediation_i18n:
+      en: "Verify practitioner registration in the health worker registry."
+      sw: "Thibitisha usajili wa mtoa huduma kwenye sajili ya wahudumu."
+    is_active: true
+    sort_order: 10
+
+  - rule_id: "IDN-011"
+    category: IDENTITY
+    severity: MAJOR
+    logic_key: "verify_practitioner_license_active"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Practitioner license should be active"
+      sw: "Leseni ya mtoa huduma inapaswa kuwa hai"
+    remediation_i18n:
+      en: "Renew or confirm practitioner license validity."
+      sw: "Sasisha au thibitisha uhalali wa leseni ya mtoa huduma."
+    is_active: true
+    sort_order: 11
+
+  - rule_id: "IDN-012"
+    category: IDENTITY
+    severity: MINOR
+    logic_key: "verify_practitioner_specialty_appropriate"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Practitioner specialty should match claim type"
+      sw: "Utaalam wa mtoa huduma unapaswa kufanana na aina ya dai"
+    remediation_i18n:
+      en: "Assign a practitioner whose specialty fits the claim category."
+      sw: "Tumia mtoa huduma mwenye utaalam unaofaa aina ya dai."
+    is_active: true
+    sort_order: 12
+
+  - rule_id: "IDN-013"
+    category: IDENTITY
+    severity: HARD_STOP
+    logic_key: "verify_sha_card_copy_present"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "SHA card copy or digital verification must be present"
+      sw: "Nakala ya kadi ya SHA au uthibitisho wa kidijitali lazima uwepo"
+    remediation_i18n:
+      en: "Upload SHA card copy or attach successful digital verification evidence."
+      sw: "Pakia nakala ya kadi ya SHA au ushahidi wa uthibitisho wa kidijitali."
+    is_active: true
+    sort_order: 13
+
+  - rule_id: "IDN-014"
+    category: IDENTITY
+    severity: MAJOR
+    logic_key: "verify_national_id_copy_legible"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "National ID copy should pass image quality threshold"
+      sw: "Nakala ya kitambulisho inapaswa kupita kiwango cha ubora wa picha"
+    remediation_i18n:
+      en: "Upload a clearer national ID copy or recapture the document."
+      sw: "Pakia nakala iliyo wazi zaidi ya kitambulisho au piga upya picha."
+    is_active: true
+    sort_order: 14
+
+  - rule_id: "IDN-015"
+    category: IDENTITY
+    severity: MINOR
+    logic_key: "verify_patient_contact_present"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Patient phone number or address should be recorded"
+      sw: "Nambari ya simu au anwani ya mgonjwa inapaswa kurekodiwa"
+    remediation_i18n:
+      en: "Capture at least one reliable patient contact detail."
+      sw: "Weka angalau taarifa moja ya mawasiliano ya mgonjwa."
+    is_active: true
+    sort_order: 15

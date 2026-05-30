@@ -1,0 +1,376 @@
+rules:
+  - rule_id: "CLN-001"
+    category: CLINICAL
+    severity: HARD_STOP
+    logic_key: "verify_icd_code_valid"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Primary diagnosis ICD-11 code must be valid"
+      sw: "Primary diagnosis ICD-11 code must be valid"
+    remediation_i18n:
+      en: "Review and correct: Primary diagnosis ICD-11 code must be valid."
+      sw: "Review and correct: Primary diagnosis ICD-11 code must be valid."
+    is_active: true
+    sort_order: 1
+
+  - rule_id: "CLN-002"
+    category: CLINICAL
+    severity: HARD_STOP
+    logic_key: "verify_icd_code_specificity"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "ICD-11 code must be at leaf level (most specific)"
+      sw: "ICD-11 code must be at leaf level (most specific)"
+    remediation_i18n:
+      en: "Review and correct: ICD-11 code must be at leaf level (most specific)."
+      sw: "Review and correct: ICD-11 code must be at leaf level (most specific)."
+    is_active: true
+    sort_order: 2
+
+  - rule_id: "CLN-003"
+    category: CLINICAL
+    severity: MAJOR
+    logic_key: "verify_diagnosis_matches_claim_type"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Diagnosis must be clinically consistent with claim type"
+      sw: "Diagnosis must be clinically consistent with claim type"
+    remediation_i18n:
+      en: "Review and correct: Diagnosis must be clinically consistent with claim type."
+      sw: "Review and correct: Diagnosis must be clinically consistent with claim type."
+    is_active: true
+    sort_order: 3
+
+  - rule_id: "CLN-004"
+    category: CLINICAL
+    severity: MAJOR
+    logic_key: "verify_procedure_matches_diagnosis"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Procedures must be clinically appropriate for diagnosis"
+      sw: "Procedures must be clinically appropriate for diagnosis"
+    remediation_i18n:
+      en: "Review and correct: Procedures must be clinically appropriate for diagnosis."
+      sw: "Review and correct: Procedures must be clinically appropriate for diagnosis."
+    is_active: true
+    sort_order: 4
+
+  - rule_id: "CLN-005"
+    category: CLINICAL
+    severity: HARD_STOP
+    logic_key: "verify_procedure_code_valid"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Procedure codes must be valid SHA service codes"
+      sw: "Procedure codes must be valid SHA service codes"
+    remediation_i18n:
+      en: "Review and correct: Procedure codes must be valid SHA service codes."
+      sw: "Review and correct: Procedure codes must be valid SHA service codes."
+    is_active: true
+    sort_order: 5
+
+  - rule_id: "CLN-006"
+    category: CLINICAL
+    severity: MAJOR
+    logic_key: "verify_los_appropriate"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Length of stay consistent with diagnosis (inpatient)"
+      sw: "Length of stay consistent with diagnosis (inpatient)"
+    remediation_i18n:
+      en: "Review and correct: Length of stay consistent with diagnosis (inpatient)."
+      sw: "Review and correct: Length of stay consistent with diagnosis (inpatient)."
+    is_active: true
+    sort_order: 6
+
+  - rule_id: "CLN-007"
+    category: CLINICAL
+    severity: MINOR
+    logic_key: "verify_medications_match_diagnosis"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Prescribed medications should relate to diagnosis"
+      sw: "Prescribed medications should relate to diagnosis"
+    remediation_i18n:
+      en: "Review and correct: Prescribed medications should relate to diagnosis."
+      sw: "Review and correct: Prescribed medications should relate to diagnosis."
+    is_active: true
+    sort_order: 7
+
+  - rule_id: "CLN-008"
+    category: CLINICAL
+    severity: MAJOR
+    logic_key: "verify_lab_tests_relevant"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Lab tests should be clinically relevant to diagnosis"
+      sw: "Lab tests should be clinically relevant to diagnosis"
+    remediation_i18n:
+      en: "Review and correct: Lab tests should be clinically relevant to diagnosis."
+      sw: "Review and correct: Lab tests should be clinically relevant to diagnosis."
+    is_active: true
+    sort_order: 8
+
+  - rule_id: "CLN-009"
+    category: CLINICAL
+    severity: MINOR
+    logic_key: "verify_no_clinical_contradictions"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "No contradictory clinical findings in documentation"
+      sw: "No contradictory clinical findings in documentation"
+    remediation_i18n:
+      en: "Review and correct: No contradictory clinical findings in documentation."
+      sw: "Review and correct: No contradictory clinical findings in documentation."
+    is_active: true
+    sort_order: 9
+
+  - rule_id: "CLN-010"
+    category: CLINICAL
+    severity: MAJOR
+    logic_key: "verify_age_appropriate_diagnosis"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Diagnosis must be plausible for patient age"
+      sw: "Diagnosis must be plausible for patient age"
+    remediation_i18n:
+      en: "Review and correct: Diagnosis must be plausible for patient age."
+      sw: "Review and correct: Diagnosis must be plausible for patient age."
+    is_active: true
+    sort_order: 10
+
+  - rule_id: "CLN-011"
+    category: CLINICAL
+    severity: MAJOR
+    logic_key: "verify_gender_appropriate_diagnosis"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Diagnosis must be plausible for patient gender"
+      sw: "Diagnosis must be plausible for patient gender"
+    remediation_i18n:
+      en: "Review and correct: Diagnosis must be plausible for patient gender."
+      sw: "Review and correct: Diagnosis must be plausible for patient gender."
+    is_active: true
+    sort_order: 11
+
+  - rule_id: "CLN-012"
+    category: CLINICAL
+    severity: MAJOR
+    logic_key: "verify_maternity_gestational_age"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Gestational age must be documented for maternity"
+      sw: "Gestational age must be documented for maternity"
+    remediation_i18n:
+      en: "Review and correct: Gestational age must be documented for maternity."
+      sw: "Review and correct: Gestational age must be documented for maternity."
+    is_active: true
+    sort_order: 12
+
+  - rule_id: "CLN-013"
+    category: CLINICAL
+    severity: MINOR
+    logic_key: "verify_vital_signs_documented"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Vital signs should be documented"
+      sw: "Vital signs should be documented"
+    remediation_i18n:
+      en: "Review and correct: Vital signs should be documented."
+      sw: "Review and correct: Vital signs should be documented."
+    is_active: true
+    sort_order: 13
+
+  - rule_id: "CLN-014"
+    category: CLINICAL
+    severity: MAJOR
+    logic_key: "verify_admission_criteria_met_ip"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Inpatient admission criteria should be documented"
+      sw: "Inpatient admission criteria should be documented"
+    remediation_i18n:
+      en: "Review and correct: Inpatient admission criteria should be documented."
+      sw: "Review and correct: Inpatient admission criteria should be documented."
+    is_active: true
+    sort_order: 14
+
+  - rule_id: "CLN-015"
+    category: CLINICAL
+    severity: MINOR
+    logic_key: "verify_follow_up_plan_documented"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Follow-up plan recommended for chronic conditions"
+      sw: "Follow-up plan recommended for chronic conditions"
+    remediation_i18n:
+      en: "Review and correct: Follow-up plan recommended for chronic conditions."
+      sw: "Review and correct: Follow-up plan recommended for chronic conditions."
+    is_active: true
+    sort_order: 15
+
+  - rule_id: "CLN-016"
+    category: CLINICAL
+    severity: MAJOR
+    logic_key: "verify_emergency_triage_documented"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Emergency triage assessment required for emergency claims"
+      sw: "Emergency triage assessment required for emergency claims"
+    remediation_i18n:
+      en: "Review and correct: Emergency triage assessment required for emergency claims."
+      sw: "Review and correct: Emergency triage assessment required for emergency claims."
+    is_active: true
+    sort_order: 16
+
+  - rule_id: "CLN-017"
+    category: CLINICAL
+    severity: MINOR
+    logic_key: "verify_allergy_documentation"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Allergy status should be documented"
+      sw: "Allergy status should be documented"
+    remediation_i18n:
+      en: "Review and correct: Allergy status should be documented."
+      sw: "Review and correct: Allergy status should be documented."
+    is_active: true
+    sort_order: 17
+
+  - rule_id: "CLN-018"
+    category: CLINICAL
+    severity: HARD_STOP
+    logic_key: "verify_dental_chart_if_dental"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Dental chart required for dental claims"
+      sw: "Dental chart required for dental claims"
+    remediation_i18n:
+      en: "Review and correct: Dental chart required for dental claims."
+      sw: "Review and correct: Dental chart required for dental claims."
+    is_active: true
+    sort_order: 18
+
+  - rule_id: "CLN-019"
+    category: CLINICAL
+    severity: HARD_STOP
+    logic_key: "verify_optical_prescription_if_optical"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Optical prescription required for optical claims"
+      sw: "Optical prescription required for optical claims"
+    remediation_i18n:
+      en: "Review and correct: Optical prescription required for optical claims."
+      sw: "Review and correct: Optical prescription required for optical claims."
+    is_active: true
+    sort_order: 19
+
+  - rule_id: "CLN-020"
+    category: CLINICAL
+    severity: MAJOR
+    logic_key: "verify_mental_health_assessment"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Mental health assessment for psychiatric claims"
+      sw: "Mental health assessment for psychiatric claims"
+    remediation_i18n:
+      en: "Review and correct: Mental health assessment for psychiatric claims."
+      sw: "Review and correct: Mental health assessment for psychiatric claims."
+    is_active: true
+    sort_order: 20
+
+  - rule_id: "CLN-021"
+    category: CLINICAL
+    severity: HARD_STOP
+    logic_key: "verify_dialysis_records_if_renal"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Dialysis records required for renal claims"
+      sw: "Dialysis records required for renal claims"
+    remediation_i18n:
+      en: "Review and correct: Dialysis records required for renal claims."
+      sw: "Review and correct: Dialysis records required for renal claims."
+    is_active: true
+    sort_order: 21
+
+  - rule_id: "CLN-022"
+    category: CLINICAL
+    severity: MINOR
+    logic_key: "verify_bmi_documented"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "BMI should be documented for relevant conditions"
+      sw: "BMI should be documented for relevant conditions"
+    remediation_i18n:
+      en: "Review and correct: BMI should be documented for relevant conditions."
+      sw: "Review and correct: BMI should be documented for relevant conditions."
+    is_active: true
+    sort_order: 22
+
+  - rule_id: "CLN-023"
+    category: CLINICAL
+    severity: MAJOR
+    logic_key: "verify_chronology_makes_sense"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Treatment timeline must be chronologically logical"
+      sw: "Treatment timeline must be chronologically logical"
+    remediation_i18n:
+      en: "Review and correct: Treatment timeline must be chronologically logical."
+      sw: "Review and correct: Treatment timeline must be chronologically logical."
+    is_active: true
+    sort_order: 23
+
+  - rule_id: "CLN-024"
+    category: CLINICAL
+    severity: MINOR
+    logic_key: "verify_secondary_diagnosis_documented"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Secondary diagnoses should be documented if present"
+      sw: "Secondary diagnoses should be documented if present"
+    remediation_i18n:
+      en: "Review and correct: Secondary diagnoses should be documented if present."
+      sw: "Review and correct: Secondary diagnoses should be documented if present."
+    is_active: true
+    sort_order: 24
+
+  - rule_id: "CLN-025"
+    category: CLINICAL
+    severity: INFO
+    logic_key: "verify_clinical_completeness_score"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Overall clinical documentation quality score"
+      sw: "Overall clinical documentation quality score"
+    remediation_i18n:
+      en: "Review and correct: Overall clinical documentation quality score."
+      sw: "Review and correct: Overall clinical documentation quality score."
+    is_active: true
+    sort_order: 25
+

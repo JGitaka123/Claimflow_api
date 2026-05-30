@@ -1,0 +1,316 @@
+rules:
+  - rule_id: "FIN-001"
+    category: FINANCIAL
+    severity: HARD_STOP
+    logic_key: "verify_tariff_code_exists"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "SHA service code must exist in active tariff table"
+      sw: "SHA service code must exist in active tariff table"
+    remediation_i18n:
+      en: "Review and correct: SHA service code must exist in active tariff table."
+      sw: "Review and correct: SHA service code must exist in active tariff table."
+    is_active: true
+    sort_order: 1
+
+  - rule_id: "FIN-002"
+    category: FINANCIAL
+    severity: HARD_STOP
+    logic_key: "verify_amount_within_tariff"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Claimed amount must not exceed SHA tariff maximum"
+      sw: "Claimed amount must not exceed SHA tariff maximum"
+    remediation_i18n:
+      en: "Review and correct: Claimed amount must not exceed SHA tariff maximum."
+      sw: "Review and correct: Claimed amount must not exceed SHA tariff maximum."
+    is_active: true
+    sort_order: 2
+
+  - rule_id: "FIN-003"
+    category: FINANCIAL
+    severity: MAJOR
+    logic_key: "verify_tariff_tier_matches"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Tariff applied must match facility tier level"
+      sw: "Tariff applied must match facility tier level"
+    remediation_i18n:
+      en: "Review and correct: Tariff applied must match facility tier level."
+      sw: "Review and correct: Tariff applied must match facility tier level."
+    is_active: true
+    sort_order: 3
+
+  - rule_id: "FIN-004"
+    category: FINANCIAL
+    severity: MAJOR
+    logic_key: "verify_quantity_reasonable"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Quantity of items/services must be clinically reasonable"
+      sw: "Quantity of items/services must be clinically reasonable"
+    remediation_i18n:
+      en: "Review and correct: Quantity of items/services must be clinically reasonable."
+      sw: "Review and correct: Quantity of items/services must be clinically reasonable."
+    is_active: true
+    sort_order: 4
+
+  - rule_id: "FIN-005"
+    category: FINANCIAL
+    severity: MAJOR
+    logic_key: "verify_no_unbundling"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Services should not be unbundled to inflate claim"
+      sw: "Services should not be unbundled to inflate claim"
+    remediation_i18n:
+      en: "Review and correct: Services should not be unbundled to inflate claim."
+      sw: "Review and correct: Services should not be unbundled to inflate claim."
+    is_active: true
+    sort_order: 5
+
+  - rule_id: "FIN-006"
+    category: FINANCIAL
+    severity: MAJOR
+    logic_key: "verify_no_upcoding"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Procedure codes should match documented complexity"
+      sw: "Procedure codes should match documented complexity"
+    remediation_i18n:
+      en: "Review and correct: Procedure codes should match documented complexity."
+      sw: "Review and correct: Procedure codes should match documented complexity."
+    is_active: true
+    sort_order: 6
+
+  - rule_id: "FIN-007"
+    category: FINANCIAL
+    severity: HARD_STOP
+    logic_key: "verify_total_matches_lines"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Claim total must equal sum of line items"
+      sw: "Claim total must equal sum of line items"
+    remediation_i18n:
+      en: "Review and correct: Claim total must equal sum of line items."
+      sw: "Review and correct: Claim total must equal sum of line items."
+    is_active: true
+    sort_order: 7
+
+  - rule_id: "FIN-008"
+    category: FINANCIAL
+    severity: MINOR
+    logic_key: "verify_unit_price_consistent"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Unit prices should be consistent with SHA tariff rates"
+      sw: "Unit prices should be consistent with SHA tariff rates"
+    remediation_i18n:
+      en: "Review and correct: Unit prices should be consistent with SHA tariff rates."
+      sw: "Review and correct: Unit prices should be consistent with SHA tariff rates."
+    is_active: true
+    sort_order: 8
+
+  - rule_id: "FIN-009"
+    category: FINANCIAL
+    severity: MAJOR
+    logic_key: "verify_pharmacy_items_formulary"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Pharmacy items should be in SHA formulary"
+      sw: "Pharmacy items should be in SHA formulary"
+    remediation_i18n:
+      en: "Review and correct: Pharmacy items should be in SHA formulary."
+      sw: "Review and correct: Pharmacy items should be in SHA formulary."
+    is_active: true
+    sort_order: 9
+
+  - rule_id: "FIN-010"
+    category: FINANCIAL
+    severity: MAJOR
+    logic_key: "verify_los_charges_match_dates"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Bed charges must match admission to discharge dates"
+      sw: "Bed charges must match admission to discharge dates"
+    remediation_i18n:
+      en: "Review and correct: Bed charges must match admission to discharge dates."
+      sw: "Review and correct: Bed charges must match admission to discharge dates."
+    is_active: true
+    sort_order: 10
+
+  - rule_id: "FIN-011"
+    category: FINANCIAL
+    severity: MINOR
+    logic_key: "verify_consultation_fee_appropriate"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Consultation fee must match facility tier"
+      sw: "Consultation fee must match facility tier"
+    remediation_i18n:
+      en: "Review and correct: Consultation fee must match facility tier."
+      sw: "Review and correct: Consultation fee must match facility tier."
+    is_active: true
+    sort_order: 11
+
+  - rule_id: "FIN-012"
+    category: FINANCIAL
+    severity: MAJOR
+    logic_key: "verify_surgical_fees_match_procedure"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Surgical fees must correspond to documented procedures"
+      sw: "Surgical fees must correspond to documented procedures"
+    remediation_i18n:
+      en: "Review and correct: Surgical fees must correspond to documented procedures."
+      sw: "Review and correct: Surgical fees must correspond to documented procedures."
+    is_active: true
+    sort_order: 12
+
+  - rule_id: "FIN-013"
+    category: FINANCIAL
+    severity: MINOR
+    logic_key: "verify_no_duplicate_line_items"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Warn if identical line items appear more than once"
+      sw: "Warn if identical line items appear more than once"
+    remediation_i18n:
+      en: "Review and correct: Warn if identical line items appear more than once."
+      sw: "Review and correct: Warn if identical line items appear more than once."
+    is_active: true
+    sort_order: 13
+
+  - rule_id: "FIN-014"
+    category: FINANCIAL
+    severity: MAJOR
+    logic_key: "verify_maternity_package_rate"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Maternity claims must use package rates where applicable"
+      sw: "Maternity claims must use package rates where applicable"
+    remediation_i18n:
+      en: "Review and correct: Maternity claims must use package rates where applicable."
+      sw: "Review and correct: Maternity claims must use package rates where applicable."
+    is_active: true
+    sort_order: 14
+
+  - rule_id: "FIN-015"
+    category: FINANCIAL
+    severity: MAJOR
+    logic_key: "verify_renal_session_rate"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Dialysis claims must use per-session rates"
+      sw: "Dialysis claims must use per-session rates"
+    remediation_i18n:
+      en: "Review and correct: Dialysis claims must use per-session rates."
+      sw: "Review and correct: Dialysis claims must use per-session rates."
+    is_active: true
+    sort_order: 15
+
+  - rule_id: "FIN-016"
+    category: FINANCIAL
+    severity: MINOR
+    logic_key: "verify_claim_total_within_expected_range"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Total claim amount should be within expected range for diagnosis"
+      sw: "Total claim amount should be within expected range for diagnosis"
+    remediation_i18n:
+      en: "Review and correct: Total claim amount should be within expected range for diagnosis."
+      sw: "Review and correct: Total claim amount should be within expected range for diagnosis."
+    is_active: true
+    sort_order: 16
+
+  - rule_id: "FIN-017"
+    category: FINANCIAL
+    severity: MAJOR
+    logic_key: "verify_icu_charges_justified"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "ICU charges require ICU admission documentation"
+      sw: "ICU charges require ICU admission documentation"
+    remediation_i18n:
+      en: "Review and correct: ICU charges require ICU admission documentation."
+      sw: "Review and correct: ICU charges require ICU admission documentation."
+    is_active: true
+    sort_order: 17
+
+  - rule_id: "FIN-018"
+    category: FINANCIAL
+    severity: MINOR
+    logic_key: "verify_implant_costs_documented"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Implant costs require separate documentation"
+      sw: "Implant costs require separate documentation"
+    remediation_i18n:
+      en: "Review and correct: Implant costs require separate documentation."
+      sw: "Review and correct: Implant costs require separate documentation."
+    is_active: true
+    sort_order: 18
+
+  - rule_id: "FIN-019"
+    category: FINANCIAL
+    severity: HARD_STOP
+    logic_key: "verify_benefit_limit_not_exceeded"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Claim must not exceed annual benefit limit for patient"
+      sw: "Claim must not exceed annual benefit limit for patient"
+    remediation_i18n:
+      en: "Review and correct: Claim must not exceed annual benefit limit for patient."
+      sw: "Review and correct: Claim must not exceed annual benefit limit for patient."
+    is_active: true
+    sort_order: 19
+
+  - rule_id: "FIN-020"
+    category: FINANCIAL
+    severity: INFO
+    logic_key: "verify_financial_completeness_score"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Financial validation completeness score"
+      sw: "Financial validation completeness score"
+    remediation_i18n:
+      en: "Review and correct: Financial validation completeness score."
+      sw: "Review and correct: Financial validation completeness score."
+    is_active: true
+    sort_order: 20
+
+  - rule_id: "FIN-021"
+    category: FINANCIAL
+    severity: MAJOR
+    logic_key: "verify_hospital_approved_matches_claim"
+    applies_to: ["ALL"]
+    params: {}
+    message_i18n:
+      en: "Hospital-approved total should align with sum of claim line totals (within 5%)"
+      sw: "Hospital-approved total should align with sum of claim line totals (within 5%)"
+    remediation_i18n:
+      en: "Review and correct: Hospital-approved total should align with sum of claim line totals (within 5%)."
+      sw: "Review and correct: Hospital-approved total should align with sum of claim line totals (within 5%)."
+    is_active: true
+    sort_order: 21
+
