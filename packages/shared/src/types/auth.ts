@@ -24,6 +24,8 @@ export type Permission =
   | 'user:manage'
   | 'rulepack:activate'
   | 'audit_trail:view'
+  | 'case:view'
+  | 'case:manage'
   | 'system:settings';
 
 /** RBAC Permission Matrix from Section 18 */
@@ -32,18 +34,18 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'claim:create', 'claim:update', 'document:upload', 'audit:trigger',
     'field:correct', 'override:request', 'override:approve', 'export:evidence',
     'dashboard:view', 'user:manage', 'rulepack:activate', 'audit_trail:view',
-    'system:settings',
+    'case:view', 'case:manage', 'system:settings',
   ],
   [UserRole.ADMIN]: [
     'claim:create', 'claim:update', 'document:upload', 'audit:trigger',
     'field:correct', 'override:request', 'override:approve', 'export:evidence',
     'dashboard:view', 'user:manage', 'rulepack:activate', 'audit_trail:view',
-    'system:settings',
+    'case:view', 'case:manage', 'system:settings',
   ],
   [UserRole.SUPERVISOR]: [
     'claim:create', 'claim:update', 'document:upload', 'audit:trigger',
     'field:correct', 'override:request', 'override:approve', 'export:evidence',
-    'dashboard:view', 'audit_trail:view',
+    'dashboard:view', 'audit_trail:view', 'case:view', 'case:manage',
   ],
   [UserRole.CLAIMS_OFFICER]: [
     'claim:create', 'claim:update', 'document:upload', 'audit:trigger',
@@ -51,6 +53,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   ],
   [UserRole.AUDITOR]: [
     'audit:trigger', 'export:evidence', 'dashboard:view', 'audit_trail:view',
+    'case:view', 'case:manage',
   ],
   [UserRole.VIEWER]: [
     'dashboard:view',

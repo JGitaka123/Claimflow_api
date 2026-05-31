@@ -12,7 +12,7 @@ Status legend: ✅ done · 🟡 in progress · ⛔ blocked · ⬜ not started
 | 2 | Foundation follow-ups: backfill SHA `payer_id`, tighten to `NOT NULL` | 🟡 in review (stacked on 1b) | _stacked PR_ |
 | 3 | Scoring endpoint (`POST /v1/claims/score`, FHIR input, reason codes, problem+json) | 🟡 in review (stacked) | _stacked PR_ |
 | 4 | Async + batch + signed webhooks | 🟡 in review (stacked) — webhooks done; async `/batch` endpoint = follow-up | _stacked PR_ |
-| 5 | Case management API | ⬜ not started | — |
+| 5 | Case management API | 🟡 in review (stacked) | _stacked PR_ |
 | 6 | Multi-tenancy, auth, rate limiting | ⛔ STOP GATE (auth model + tenancy isolation decision) | — |
 | 7 | Observability + ops + usage metering | ⬜ not started | — |
 | 8 | Developer experience: interactive docs, sandbox, SDKs | ⬜ not started | — |
@@ -87,6 +87,15 @@ Status legend: ✅ done · 🟡 in progress · ⛔ blocked · ⬜ not started
 - Tests: signing unit tests; integration for CRUD (secret hidden on list), signed delivery + verify,
   backoff on failure, and emission via the score endpoint.
 - **Follow-up:** async `POST /v1/claims/batch` submission endpoint; `case.status_changed` with item 5.
+
+### 5 — Case management (in review, stacked)
+- `investigation_cases` + `case_claims` (many-to-many) + append-only `case_events` (migration `020`).
+- `/v1/cases` CRUD + status transitions (state-machine validated) + claim link/unlink; every mutation
+  writes a `case_events` row (immutable case audit trail).
+- `case.status_changed` emitted into the item-4 webhook system on transition.
+- New RBAC permissions `case:view` / `case:manage` (supervisor, auditor, admin, super_admin).
+- Tests: transition unit + integration (create/link/events, 422 on invalid transition, webhook
+  emission, link/unlink, tenant isolation).
 
 ### STOP GATES pending my input
 - **Item 6** — default auth model (OAuth2 client-credentials vs. tenant-scoped API keys vs.

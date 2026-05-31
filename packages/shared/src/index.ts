@@ -9,6 +9,7 @@ export * from './types/rule.js';
 export * from './types/payer.js';
 export * from './types/scoring.js';
 export * from './types/webhook.js';
+export * from './types/case.js';
 export * from './types/auth.js';
 export * from './types/api.js';
 export * from './types/fhir.js';
