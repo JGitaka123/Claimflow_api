@@ -9,6 +9,7 @@ import {
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { getPool } from '../db/client.js';
 import { createAuthService } from '../services/auth-service.js';
+import { createApiKeyService } from '../services/api-key-service.js';
 
 const PUBLIC_PATHS = new Set([
   '/health',
@@ -66,6 +67,15 @@ export function requireRole(...roles: UserRole[]) {
 
 export function requirePermission(permission: Permission) {
   return async (request: FastifyRequest): Promise<void> => {
+    // Machine (API-key) requests are authorized by their explicit scopes, never by
+    // the key creator's role — least privilege.
+    if (request.apiKey) {
+      if (!request.apiKey.scopes.includes(permission)) {
+        throw new DomainError(ErrorCode.FORBIDDEN, 'API key missing required scope');
+      }
+      return;
+    }
+
     const role = getRoleFromRequest(request);
 
     if (!ROLE_PERMISSIONS[role].includes(permission)) {
@@ -94,14 +104,53 @@ export function requireStepUpMfa(maxAgeMs = STEP_UP_WINDOW_MS) {
   };
 }
 
+function extractApiKeyToken(request: FastifyRequest): string | null {
+  const headerKey = request.headers['x-api-key'];
+  const candidate = Array.isArray(headerKey) ? headerKey[0] : headerKey;
+
+  if (typeof candidate === 'string' && candidate.startsWith('cf_')) {
+    return candidate.trim();
+  }
+
+  const authorization = request.headers.authorization;
+  if (authorization?.startsWith('Bearer cf_')) {
+    return authorization.slice('Bearer '.length).trim();
+  }
+
+  return null;
+}
+
 const authPlugin: FastifyPluginAsync = async (fastify) => {
   const pool = getPool(fastify.config);
   const authService = createAuthService(pool, fastify.log, fastify.config);
+  const apiKeyService = createApiKeyService(pool);
 
   fastify.decorateRequest('user', null);
+  fastify.decorateRequest('apiKey', null);
 
   fastify.addHook('onRequest', async (request) => {
     if (isPublicPath(request)) {
+      return;
+    }
+
+    // Machine auth: a cf_-prefixed API key (X-Api-Key or Bearer) authenticates the
+    // request and resolves tenant + scopes. The human JWT path below is unchanged.
+    const apiKeyToken = extractApiKeyToken(request);
+    if (apiKeyToken) {
+      const verified = await apiKeyService.verifyApiKey(apiKeyToken);
+      if (!verified) {
+        throw new DomainError(ErrorCode.UNAUTHORIZED, 'Invalid or expired API key');
+      }
+
+      request.user = {
+        userId: verified.createdBy,
+        tenantId: verified.tenantId,
+        facilityId: verified.facilityId,
+        role: verified.role,
+        mfaVerifiedAt: null,
+        token: apiKeyToken,
+      };
+      request.apiKey = { id: verified.keyId, scopes: verified.scopes };
       return;
     }
 
