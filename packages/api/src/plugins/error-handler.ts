@@ -7,7 +7,7 @@ import type { ApiErrorDetail, ApiErrorResponse } from '@claimflow/shared';
 // Public endpoints that return RFC 7807 application/problem+json errors instead of
 // the internal { data, meta, errors } envelope. Scoped narrowly so the existing
 // web frontend and internal routes are unaffected.
-const PROBLEM_JSON_PREFIXES = ['/v1/claims/score'];
+const PROBLEM_JSON_PREFIXES = ['/v1/claims/score', '/v1/oauth/token'];
 
 function requestPath(request: FastifyRequest): string {
   const rawUrl = request.raw.url ?? request.url ?? '/';

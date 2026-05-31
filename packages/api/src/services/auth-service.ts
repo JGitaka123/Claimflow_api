@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import bcrypt from 'bcryptjs';
 import jwt, { type JwtPayload, type SignOptions } from 'jsonwebtoken';
 import { authenticator } from 'otplib';
-import { DomainError, ErrorCode, UserRole } from '@claimflow/shared';
+import { DomainError, ErrorCode, UserRole, type OAuthAccessTokenClaims } from '@claimflow/shared';
 import type { FastifyBaseLogger } from 'fastify';
 import type { Pool, PoolClient, QueryResultRow } from 'pg';
 import type { Config } from '../config.js';
@@ -14,6 +14,7 @@ const JWT_ISSUER = 'claimflow';
 const JWT_ACCESS_AUDIENCE = 'claimflow-api';
 const JWT_REFRESH_AUDIENCE = 'claimflow-refresh';
 const JWT_MFA_AUDIENCE = 'claimflow-mfa';
+const JWT_OAUTH_AUDIENCE = 'claimflow-oauth';
 
 interface UserRow extends QueryResultRow {
   id: string;
@@ -441,6 +442,54 @@ export class AuthService {
 
       throw new DomainError(ErrorCode.UNAUTHORIZED, 'Invalid or expired access token');
     }
+  }
+
+  /**
+   * Sign a short-lived OAuth2 client-credentials access token. Reuses the
+   * existing RS256 keypair but with a dedicated audience so these tokens can
+   * never be confused with human session tokens. `expiresIn` is the configured
+   * access-token TTL; the resolved `exp` is returned for `expires_in`.
+   */
+  async signOAuthAccessToken(claims: OAuthAccessTokenClaims): Promise<{ token: string; expiresIn: number }> {
+    const token = await this.signToken(claims, this.config.JWT_ACCESS_EXPIRY, JWT_OAUTH_AUDIENCE);
+    const decoded = jwt.decode(token) as JwtPayload | null;
+    const exp = decoded?.exp;
+    const iat = decoded?.iat;
+
+    if (!exp || !iat) {
+      throw new DomainError(ErrorCode.INTERNAL_ERROR, 'Failed to compute token expiration');
+    }
+
+    return { token, expiresIn: exp - iat };
+  }
+
+  /**
+   * Verify an OAuth2 client-credentials access token and return an AuthContext.
+   * The token's scopes travel separately (on `request.apiKey`); here we only
+   * resolve identity + tenant. Fails closed on any verification error.
+   */
+  async verifyOAuthAccessToken(token: string): Promise<{ context: AuthContext; scopes: string[]; clientId: string }> {
+    const payload = await this.verifyToken(token, JWT_OAUTH_AUDIENCE);
+
+    if (payload.type !== 'oauth_client') {
+      throw new DomainError(ErrorCode.UNAUTHORIZED, 'Invalid token type');
+    }
+
+    const claims = payload as unknown as OAuthAccessTokenClaims;
+    const scopes = typeof claims.scope === 'string' && claims.scope.length > 0 ? claims.scope.split(' ') : [];
+
+    return {
+      context: {
+        userId: claims.sub,
+        tenantId: claims.tenantId,
+        facilityId: null,
+        role: UserRole.VIEWER,
+        mfaVerifiedAt: null,
+        token,
+      },
+      scopes,
+      clientId: claims.cid,
+    };
   }
 
   async login(params: {

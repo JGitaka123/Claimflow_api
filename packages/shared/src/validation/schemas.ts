@@ -20,6 +20,24 @@ export const CreateApiKeySchema = z.object({
 });
 export type CreateApiKeyInput = z.infer<typeof CreateApiKeySchema>;
 
+// --- OAuth2 clients (client-credentials) ---
+
+export const CreateOAuthClientSchema = z.object({
+  name: z.string().min(1).max(120),
+  scopes: z.array(z.enum(API_KEY_SCOPES as unknown as [ApiKeyScope, ...ApiKeyScope[]])).min(1),
+});
+export type CreateOAuthClientInput = z.infer<typeof CreateOAuthClientSchema>;
+
+// RFC 6749 §4.4 client-credentials token request. `scope` is an optional
+// space-delimited subset of the client's granted scopes (down-scoping).
+export const OAuthTokenRequestSchema = z.object({
+  grant_type: z.literal('client_credentials'),
+  client_id: z.string().min(1),
+  client_secret: z.string().min(1),
+  scope: z.string().optional(),
+});
+export type OAuthTokenRequestInput = z.infer<typeof OAuthTokenRequestSchema>;
+
 // --- Investigation cases ---
 
 export const CreateCaseSchema = z.object({

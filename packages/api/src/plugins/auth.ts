@@ -19,6 +19,7 @@ const PUBLIC_PATHS = new Set([
   '/v1/auth/mfa/verify',
   '/v1/auth/refresh',
   '/v1/auth/logout',
+  '/v1/oauth/token',
 ]);
 
 const STEP_UP_WINDOW_MS = 5 * 60 * 1000;
@@ -120,6 +121,25 @@ function extractApiKeyToken(request: FastifyRequest): string | null {
   return null;
 }
 
+/**
+ * Read the `type` claim from a JWT payload without verifying the signature, to
+ * route the token to the right verifier. Verification (signature, issuer,
+ * audience, expiry) is always performed afterwards by the chosen verifier.
+ */
+function peekTokenType(token: string): string | null {
+  const parts = token.split('.');
+  const payload = parts[1];
+  if (parts.length !== 3 || !payload) {
+    return null;
+  }
+  try {
+    const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as { type?: unknown };
+    return typeof decoded.type === 'string' ? decoded.type : null;
+  } catch {
+    return null;
+  }
+}
+
 const authPlugin: FastifyPluginAsync = async (fastify) => {
   const pool = getPool(fastify.config);
   const authService = createAuthService(pool, fastify.log, fastify.config);
@@ -164,6 +184,16 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
 
     if (token.length === 0) {
       throw new DomainError(ErrorCode.UNAUTHORIZED, 'Missing or invalid Bearer token');
+    }
+
+    // OAuth2 client-credentials tokens are RS256 JWTs (not cf_-prefixed) carrying
+    // type:'oauth_client'. They resolve tenant + scopes like an API key, and are
+    // authorized by scope — never by a human role.
+    if (peekTokenType(token) === 'oauth_client') {
+      const { context: oauthContext, scopes, clientId } = await authService.verifyOAuthAccessToken(token);
+      request.user = { ...oauthContext, role: oauthContext.role };
+      request.apiKey = { id: `oauth:${clientId}`, scopes: scopes as Permission[] };
+      return;
     }
 
     const context = await authService.verifyAccessToken(token);
