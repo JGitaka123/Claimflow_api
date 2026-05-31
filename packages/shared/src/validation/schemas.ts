@@ -9,6 +9,16 @@ import { PayerStatus } from '../types/payer.js';
 import { PreauthorizationStatus } from '../types/preauthorization.js';
 import { WebhookEventType } from '../types/webhook.js';
 import { CasePriority, CaseStatus } from '../types/case.js';
+import { API_KEY_SCOPES, type ApiKeyScope } from '../types/api-key.js';
+
+// --- API keys ---
+
+export const CreateApiKeySchema = z.object({
+  name: z.string().min(1).max(120),
+  scopes: z.array(z.enum(API_KEY_SCOPES as unknown as [ApiKeyScope, ...ApiKeyScope[]])).min(1),
+  expiresAt: z.string().datetime().optional(),
+});
+export type CreateApiKeyInput = z.infer<typeof CreateApiKeySchema>;
 
 // --- Investigation cases ---
 

@@ -13,7 +13,7 @@ Status legend: ✅ done · 🟡 in progress · ⛔ blocked · ⬜ not started
 | 3 | Scoring endpoint (`POST /v1/claims/score`, FHIR input, reason codes, problem+json) | 🟡 in review (stacked) | _stacked PR_ |
 | 4 | Async + batch + signed webhooks | 🟡 in review (stacked) — webhooks done; async `/batch` endpoint = follow-up | _stacked PR_ |
 | 5 | Case management API | 🟡 in review (stacked) | _stacked PR_ |
-| 6 | Multi-tenancy, auth, rate limiting | ⛔ STOP GATE (auth model + tenancy isolation decision) | — |
+| 6 | Multi-tenancy, auth, rate limiting | 🟡 in progress — 6a API keys in review; 6b OAuth2 / 6c RLS / 6d limits+metering pending | _stacked PR_ |
 | 7 | Observability + ops + usage metering | ⬜ not started | — |
 | 8 | Developer experience: interactive docs, sandbox, SDKs | ⬜ not started | — |
 | 9 | Compliance scaffolding (audit-log immutability, retention, DPA-2019, no-PHI-in-CI) | ⬜ not started | — |
@@ -96,6 +96,18 @@ Status legend: ✅ done · 🟡 in progress · ⛔ blocked · ⬜ not started
 - New RBAC permissions `case:view` / `case:manage` (supervisor, auditor, admin, super_admin).
 - Tests: transition unit + integration (create/link/events, 422 on invalid transition, webhook
   emission, link/unlink, tenant isolation).
+
+### 6 — Auth & tenancy (decisions resolved; building in sub-slices)
+Decisions: **API keys + OAuth2**, **shared schema + Postgres RLS**, **per-tenant + per-API-key**
+limits/metering. See `docs/auth-and-tenancy-design.md`.
+- **6a — tenant-scoped API keys (in review):** `api_keys` table (migration `021`, sha-256 hash only,
+  scopes, expiry, revoke); `/v1/api-keys` CRUD (secret returned once); auth plugin accepts a
+  `cf_`-prefixed key via `X-Api-Key` or `Bearer` and authorizes by scopes (least privilege; JWT path
+  unchanged). Tests: create/list(secret hidden)/revoke, auth-via-key, scope enforcement,
+  revoked/expired/unknown rejection.
+- **6b — OAuth2 client-credentials:** pending.
+- **6c — Postgres RLS backstop:** pending (cross-cutting; rolled out carefully with isolation tests).
+- **6d — per-tenant + per-key rate limiting & usage metering:** pending.
 
 ### STOP GATES pending my input
 - **Item 6** — default auth model (OAuth2 client-credentials vs. tenant-scoped API keys vs.

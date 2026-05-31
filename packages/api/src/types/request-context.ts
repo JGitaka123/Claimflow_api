@@ -1,4 +1,9 @@
-import type { UserRole } from '@claimflow/shared';
+import type { Permission, UserRole } from '@claimflow/shared';
+
+export interface ApiKeyContext {
+  id: string;
+  scopes: Permission[];
+}
 
 export interface AuthContext {
   userId: string;
