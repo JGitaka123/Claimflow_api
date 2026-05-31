@@ -11,7 +11,6 @@ import {
   type RuleSeverity,
 } from '@claimflow/shared';
 import {
-  createRuleEngine,
   loadRulepack,
   type DocumentSummary,
   type ExtractedFieldValue,
@@ -27,6 +26,11 @@ import type { Config } from '../config.js';
 import { CircuitBreaker } from '../integrations/circuit-breaker.js';
 import { MlClient, type MlPageResult, type MlProcessDocumentResponse } from '../integrations/ml-client.js';
 import { createStateMachineWorkflow } from './state-machine.js';
+import {
+  createRuleEngineRegistry,
+  DEFAULT_PAYER_SLUG,
+  type RuleEngineRegistry,
+} from './rule-engine-registry.js';
 
 interface ClaimContextRow extends QueryResultRow {
   id: string;
@@ -44,6 +48,10 @@ interface ClaimContextRow extends QueryResultRow {
   hmis_ref: string | null;
   facility_sha_code: string | null;
   facility_tier: string | null;
+  payer_id: string | null;
+  payer_slug: string | null;
+  payer_status: string | null;
+  payer_rulepack_version: string | null;
 }
 
 interface ClaimLineRow extends QueryResultRow {
@@ -90,6 +98,8 @@ interface AuditSessionRow extends QueryResultRow {
   user_id: string;
   rulepack_version: string;
   rulepack_checksum: string;
+  payer_id: string | null;
+  payer_slug: string | null;
   decision: AuditDecision | null;
   total_rules: number;
   passed_count: number;
@@ -159,6 +169,8 @@ export interface AuditSessionResult {
     userId: string;
     rulepackVersion: string;
     rulepackChecksum: string;
+    payerId: string | null;
+    payerSlug: string | null;
     decision: AuditDecision | null;
     totalRules: number;
     passedCount: number;
@@ -288,7 +300,7 @@ function determineConfidenceTier(confidence: number, highThreshold: number, lowT
 }
 
 export class AuditPipelineService {
-  private readonly ruleEngine: RuleEngine;
+  private readonly engineRegistry: RuleEngineRegistry;
   private readonly mlClient: MlClient;
   private readonly stateMachine: ReturnType<typeof createStateMachineWorkflow>;
   private readonly registryCircuitBreaker: CircuitBreaker<[], RegistryLookupResults>;
@@ -299,7 +311,10 @@ export class AuditPipelineService {
     private readonly config: Config,
     dependencies: AuditPipelineDependencies = {},
   ) {
-    this.ruleEngine = dependencies.ruleEngine ?? createRuleEngine(config.RULEPACK_DIR);
+    this.engineRegistry = createRuleEngineRegistry({
+      rulepackDir: config.RULEPACK_DIR,
+      ...(dependencies.ruleEngine ? { defaultEngine: dependencies.ruleEngine } : {}),
+    });
     this.mlClient =
       dependencies.mlClient ??
       new MlClient({
@@ -336,6 +351,14 @@ export class AuditPipelineService {
         `Cannot audit claim in status ${claim.row.status}`,
       );
     }
+
+    // Resolve the claim's payer and select its rule engine *before* any ML work,
+    // so a payer without an authoritative rulepack fails closed early.
+    const payer = this.resolveClaimPayer(claim.row);
+    const engine = this.engineRegistry.getEngineForPayer({
+      slug: payer.slug,
+      rulepackVersion: payer.rulepackVersion,
+    });
 
     await this.pool.query(
       `INSERT INTO audit_trail (
@@ -452,7 +475,7 @@ export class AuditPipelineService {
       registryResults,
     };
 
-    const evaluation = await this.ruleEngine.evaluate(input, locale);
+    const evaluation = await engine.evaluate(input, locale);
 
     const counts = {
       passed: evaluation.results.filter((result) => result.result === RuleResultStatus.PASS).length,
@@ -467,8 +490,9 @@ export class AuditPipelineService {
       ? qualityScores.reduce((sum, value) => sum + value, 0) / qualityScores.length
       : null;
 
-    const rulepackVersion = evaluation.rulepackVersion ?? this.ruleEngine.activeVersion;
-    const rulepackChecksum = await this.resolveRulepackChecksum(rulepackVersion);
+    const rulepackVersion = evaluation.rulepackVersion ?? engine.activeVersion;
+    const loaderPayerSlug = payer.slug === DEFAULT_PAYER_SLUG ? undefined : payer.slug;
+    const rulepackChecksum = await this.resolveRulepackChecksum(rulepackVersion, loaderPayerSlug);
 
     const sessionInsert = await this.pool.query<{ id: string }>(
       `INSERT INTO audit_sessions (
@@ -488,7 +512,9 @@ export class AuditPipelineService {
           fix_report_md,
           execution_time_ms,
           started_at,
-          completed_at
+          completed_at,
+          payer_id,
+          payer_slug
         ) VALUES (
           $1::uuid,
           $2::uuid,
@@ -506,7 +532,9 @@ export class AuditPipelineService {
           $14,
           $15,
           $16::timestamptz,
-          now()
+          now(),
+          $17::uuid,
+          $18
         )
         RETURNING id`,
       [
@@ -526,6 +554,8 @@ export class AuditPipelineService {
         evaluation.fixReportMarkdown,
         Math.round(evaluation.executionTimeMs),
         startedAt.toISOString(),
+        payer.id,
+        payer.slug,
       ],
     );
 
@@ -1048,13 +1078,36 @@ export class AuditPipelineService {
     };
   }
 
-  private async resolveRulepackChecksum(version: string): Promise<string> {
+  private async resolveRulepackChecksum(version: string, payerSlug?: string): Promise<string> {
     try {
-      const loaded = await loadRulepack(this.config.RULEPACK_DIR, version);
+      const loaded = await loadRulepack(this.config.RULEPACK_DIR, version, payerSlug);
       return loaded.manifest.checksum;
     } catch {
       return '';
     }
+  }
+
+  /**
+   * Resolve the payer to audit a claim against. Fails closed when the payer has no
+   * authoritative rulepack (status not ACTIVE, or no rulepack version) so a claim
+   * is never adjudicated against non-authoritative or absent rules.
+   */
+  private resolveClaimPayer(row: ClaimContextRow): {
+    id: string | null;
+    slug: string;
+    rulepackVersion: string;
+  } {
+    const slug = row.payer_slug ?? DEFAULT_PAYER_SLUG;
+    const version = row.payer_rulepack_version;
+
+    if (row.payer_status !== 'ACTIVE' || !version) {
+      throw new DomainError(
+        ErrorCode.INVALID_STATE_TRANSITION,
+        `Payer '${slug}' is not active for auditing (no authoritative rulepack)`,
+      );
+    }
+
+    return { id: row.payer_id, slug, rulepackVersion: version };
   }
 
   private async mapAuditSessionWithResults(session: AuditSessionRow): Promise<AuditSessionResult> {
@@ -1073,6 +1126,8 @@ export class AuditPipelineService {
         userId: session.user_id,
         rulepackVersion: session.rulepack_version,
         rulepackChecksum: session.rulepack_checksum,
+        payerId: session.payer_id,
+        payerSlug: session.payer_slug,
         decision: session.decision,
         totalRules: session.total_rules,
         passedCount: session.passed_count,
@@ -1123,9 +1178,15 @@ export class AuditPipelineService {
           c.visit_type,
           c.hmis_ref,
           f.sha_facility_code AS facility_sha_code,
-          f.tier_level AS facility_tier
+          f.tier_level AS facility_tier,
+          COALESCE(p.id, sha.id) AS payer_id,
+          COALESCE(p.slug, sha.slug) AS payer_slug,
+          COALESCE(p.status, sha.status)::text AS payer_status,
+          COALESCE(p.rulepack_version, sha.rulepack_version) AS payer_rulepack_version
         FROM claims c
         JOIN facilities f ON f.id = c.facility_id
+        LEFT JOIN payers p ON p.id = c.payer_id
+        LEFT JOIN payers sha ON sha.slug = 'sha'
        WHERE c.id = $1::uuid
          AND c.tenant_id = $2::uuid
        LIMIT 1`,

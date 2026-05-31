@@ -274,7 +274,7 @@ async function truncatePublicTables(pool: Pool): Promise<void> {
     `SELECT tablename
        FROM pg_tables
       WHERE schemaname = 'public'
-        AND tablename <> 'schema_migrations'`,
+        AND tablename NOT IN ('schema_migrations', 'payers', 'icd_codes', 'sha_service_codes')`,
   );
 
   if (tableRows.rows.length === 0) {
@@ -537,13 +537,24 @@ integrationDescribe('Audit pipeline integration (real Postgres + ML stub)', () =
 
     const auditBody = auditResponse.json() as {
       data: {
-        auditSession: { id: string; decision: ClaimStatus | null };
+        auditSession: { id: string; decision: ClaimStatus | null; payerSlug: string | null };
         ruleResults: unknown[];
       };
     };
 
     expect(auditBody.data.auditSession.id).toBeTruthy();
     expect(auditBody.data.ruleResults.length).toBeGreaterThan(0);
+    // Slice 2: the immutable audit session records the payer it was audited against.
+    expect(auditBody.data.auditSession.payerSlug).toBe('sha');
+
+    const sessionPayer = await pool!.query<{ payer_id: string | null; payer_slug: string | null }>(
+      `SELECT a.payer_id, a.payer_slug
+         FROM audit_sessions a
+         JOIN payers p ON p.id = a.payer_id
+        WHERE a.id = $1::uuid AND p.slug = 'sha'`,
+      [auditBody.data.auditSession.id],
+    );
+    expect(sessionPayer.rows[0]?.payer_slug).toBe('sha');
 
     const statusRow = await pool!.query<{ status: ClaimStatus }>('SELECT status FROM claims WHERE id = $1::uuid', [claimId]);
     expect([ClaimStatus.PASSED, ClaimStatus.FAILED, ClaimStatus.WARNING]).toContain(statusRow.rows[0]?.status);

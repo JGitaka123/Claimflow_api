@@ -84,6 +84,10 @@ export interface Claim {
   id: string;
   tenantId: string;
   facilityId: string;
+  payerId: string | null;
+  /** Denormalized payer slug/name for display; populated on joined reads. */
+  payerSlug?: string | null;
+  payerName?: string | null;
   patientShaId: string | null;
   patientName: string | null;
   patientNationalId: string | null;
@@ -112,6 +116,8 @@ export interface ClaimSummary {
   id: string;
   status: ClaimStatus;
   version: number;
+  payerId: string | null;
+  payerSlug: string | null;
   claimType: ClaimType;
   visitType: VisitType;
   hmisRef: string | null;

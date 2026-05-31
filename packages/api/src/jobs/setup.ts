@@ -555,6 +555,12 @@ export class JobQueueManager {
       bindIndex += 1;
     }
 
+    if (params.filter.payerId) {
+      whereClauses.push(`payer_id = $${bindIndex}::uuid`);
+      values.push(params.filter.payerId);
+      bindIndex += 1;
+    }
+
     if (params.filter.dateFrom) {
       whereClauses.push(`admission_date >= $${bindIndex}::date`);
       values.push(params.filter.dateFrom);

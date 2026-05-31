@@ -3,6 +3,7 @@ export type BatchJobStatus = 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 export interface BatchAuditFilter {
   status: 'DOCUMENTS_UPLOADED';
   facilityId?: string;
+  payerId?: string;
   dateFrom?: string;
   dateTo?: string;
 }

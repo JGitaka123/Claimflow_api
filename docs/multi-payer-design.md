@@ -70,10 +70,13 @@ error rather than silently audit a claim against another payer's rules.
    in-Kenya residency, encryption at rest, retention/deletion, consent metadata, breach
    readiness, customer Data Processing Agreements.
 
-## Slice 2 — detailed plan (thread payer through claims & audit)
+## Slice 2 — thread payer through claims & audit
 
-> Status: **planned, not yet implemented.** This section is the agreed design for the next
-> slice; no code from it has landed.
+> Status: **implemented** (PR for Phase 1 slice 2). `payerId` is accepted on claim creation
+> (defaulting to SHA, fail-closed on non-ACTIVE payers), the audit pipeline selects a
+> per-payer `RuleEngine` via a lazily-cached registry, and every audit session records the
+> payer (`payer_id` / `payer_slug`) alongside the rulepack version + checksum. Follow-ups
+> (claims backfill + `payer_id NOT NULL`) tracked in `PROGRESS.md` as backlog item 2.
 
 Goal: every claim carries an explicit payer, the audit pipeline evaluates each claim against
 *its own payer's* rulepack, and each audit session immutably records which payer + rulepack

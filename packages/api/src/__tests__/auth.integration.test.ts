@@ -86,7 +86,7 @@ async function truncatePublicTables(pool: Pool): Promise<void> {
     `SELECT tablename
        FROM pg_tables
       WHERE schemaname = 'public'
-        AND tablename <> 'schema_migrations'`,
+        AND tablename NOT IN ('schema_migrations', 'payers', 'icd_codes', 'sha_service_codes')`,
   );
 
   if (tableRows.rows.length === 0) {

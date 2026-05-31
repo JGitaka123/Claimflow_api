@@ -30,6 +30,9 @@ export const PayerSlugParamSchema = z.object({
 
 export const CreateClaimSchema = z.object({
   facilityId: z.string().uuid(),
+  // Optional payer; when omitted the service defaults to the SHA payer. Must
+  // reference an ACTIVE payer in the catalog — fail closed otherwise.
+  payerId: z.string().uuid().optional(),
   claimType: z.nativeEnum(ClaimType),
   visitType: z.nativeEnum(VisitType).default(VisitType.OP),
   patientShaId: z.string().max(50).optional(),
@@ -113,6 +116,7 @@ export const BatchAuditSchema = z.object({
   filter: z.object({
     status: z.literal('DOCUMENTS_UPLOADED'),
     facilityId: z.string().uuid().optional(),
+    payerId: z.string().uuid().optional(),
     dateFrom: z.string().date().optional(),
     dateTo: z.string().date().optional(),
   }).optional(),
