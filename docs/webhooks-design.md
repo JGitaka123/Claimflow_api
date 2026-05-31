@@ -1,6 +1,7 @@
 # Webhooks Design — signed event delivery
 
-> Backlog item 4 (webhook portion). Status: **in progress.** Plan lands before implementation.
+> Backlog item 4 (webhook portion). Status: **implemented.** The async `POST /v1/claims/batch`
+> submission endpoint remains a follow-up (async batch already exists via `batch-audit`).
 
 ## Purpose
 

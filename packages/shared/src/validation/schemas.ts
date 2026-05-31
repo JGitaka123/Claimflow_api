@@ -7,6 +7,16 @@ import { ClaimType, VisitType } from '../types/claim.js';
 import { DocumentType } from '../types/document.js';
 import { PayerStatus } from '../types/payer.js';
 import { PreauthorizationStatus } from '../types/preauthorization.js';
+import { WebhookEventType } from '../types/webhook.js';
+
+// --- Webhooks ---
+
+export const CreateWebhookEndpointSchema = z.object({
+  url: z.string().url().max(2048),
+  events: z.array(z.nativeEnum(WebhookEventType)).min(1),
+  description: z.string().max(500).optional(),
+});
+export type CreateWebhookEndpointInput = z.infer<typeof CreateWebhookEndpointSchema>;
 
 // --- Payers ---
 
