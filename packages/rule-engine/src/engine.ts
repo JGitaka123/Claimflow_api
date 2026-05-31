@@ -7,9 +7,15 @@ export interface RuleEngine {
   evaluate: (input: RuleEngineInput, locale?: string) => Promise<RuleEngineOutput>;
   reload: (version?: string) => Promise<void>;
   readonly activeVersion: string;
+  /** Payer this engine is bound to, or null for the legacy/default (SHA) layout. */
+  readonly payerSlug: string | null;
 }
 
-export function createRuleEngine(rulepackDir: string, initialVersion = '1.0.0'): RuleEngine {
+export function createRuleEngine(
+  rulepackDir: string,
+  initialVersion = '1.0.0',
+  payerSlug?: string,
+): RuleEngine {
   let currentVersion = initialVersion;
   let cachedRulepack: Rulepack | null = null;
   let inFlightLoad: Promise<Rulepack> | null = null;
@@ -23,7 +29,7 @@ export function createRuleEngine(rulepackDir: string, initialVersion = '1.0.0'):
       return inFlightLoad;
     }
 
-    inFlightLoad = loadRulepack(rulepackDir, currentVersion)
+    inFlightLoad = loadRulepack(rulepackDir, currentVersion, payerSlug)
       .then((loadedRulepack) => {
         cachedRulepack = loadedRulepack;
         return loadedRulepack;
@@ -46,11 +52,15 @@ export function createRuleEngine(rulepackDir: string, initialVersion = '1.0.0'):
         currentVersion = version;
       }
 
-      cachedRulepack = await loadRulepack(rulepackDir, currentVersion);
+      cachedRulepack = await loadRulepack(rulepackDir, currentVersion, payerSlug);
     },
 
     get activeVersion(): string {
       return currentVersion;
+    },
+
+    get payerSlug(): string | null {
+      return payerSlug ?? null;
     },
   };
 }

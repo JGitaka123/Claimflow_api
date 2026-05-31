@@ -66,7 +66,7 @@ describe('engine coverage branches', () => {
     await engine.reload('2.0.0');
 
     expect(engine.activeVersion).toBe('2.0.0');
-    expect(loadRulepackMock).toHaveBeenLastCalledWith('unused-dir', '2.0.0');
+    expect(loadRulepackMock).toHaveBeenLastCalledWith('unused-dir', '2.0.0', undefined);
   });
 });
 

@@ -13,6 +13,8 @@ interface FixtureOptions {
   version?: string;
   manifestYaml?: string;
   categoryFiles?: Partial<Record<CategoryFileName, string>>;
+  /** When set, the rulepack is written under <root>/<payerSlug>/<version>/. */
+  payerSlug?: string;
 }
 
 type CategoryFileName =
@@ -55,7 +57,8 @@ const EMPTY_CATEGORY_FILE = 'rules: []\n';
 export async function createTempRulepackFixture(options: FixtureOptions = {}): Promise<TempRulepackFixture> {
   const version = options.version ?? '1.0.0';
   const rootDir = await mkdtemp(path.join(tmpdir(), 'claimflow-rulepack-'));
-  const versionDir = path.join(rootDir, version);
+  const baseDir = options.payerSlug ? path.join(rootDir, options.payerSlug) : rootDir;
+  const versionDir = path.join(baseDir, version);
 
   await mkdir(versionDir, { recursive: true });
   await writeFile(path.join(versionDir, 'manifest.yaml'), options.manifestYaml ?? DEFAULT_MANIFEST, 'utf8');
