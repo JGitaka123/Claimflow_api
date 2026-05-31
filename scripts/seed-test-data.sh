@@ -58,6 +58,7 @@ compose_exec_psql "
     INSERT INTO claims (
       tenant_id,
       facility_id,
+      payer_id,
       patient_sha_id,
       patient_name_enc,
       patient_national_id_enc,
@@ -74,6 +75,7 @@ compose_exec_psql "
     SELECT
       c.tenant_id,
       c.facility_id,
+      (SELECT id FROM payers WHERE slug = 'sha'),
       format('TEST-SHA-%04s', gs),
       format('Training Patient %s', gs),
       format('TEST-ID-%04s', gs),

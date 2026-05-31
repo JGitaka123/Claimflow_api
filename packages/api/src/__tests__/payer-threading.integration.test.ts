@@ -240,6 +240,16 @@ integrationDescribe('Payer threading integration (real Postgres)', () => {
     expect(body.errors[0]?.code).toBe(ErrorCode.VALIDATION_ERROR);
   });
 
+  it('enforces NOT NULL on claims.payer_id', async () => {
+    const column = await pool!.query<{ is_nullable: string }>(
+      `SELECT is_nullable
+         FROM information_schema.columns
+        WHERE table_name = 'claims' AND column_name = 'payer_id'`,
+    );
+
+    expect(column.rows[0]?.is_nullable).toBe('NO');
+  });
+
   it('returns payer fields on claim detail reads', async () => {
     const seed = await seedBaseData(pool!);
 
