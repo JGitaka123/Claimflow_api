@@ -22,8 +22,20 @@ interface ParsedManifest extends Omit<RulepackManifest, 'checksum'> {
   checksum?: string;
 }
 
-export async function loadRulepack(dir: string, version: string): Promise<Rulepack> {
-  const candidates = buildVersionCandidates(version);
+export async function loadRulepack(
+  dir: string,
+  version: string,
+  payerSlug?: string,
+): Promise<Rulepack> {
+  const versionCandidates = buildVersionCandidates(version);
+  // Payer-namespaced layout: <dir>/<payerSlug>/<version>/. When no payer is
+  // given we keep the legacy flat layout (<dir>/<version>/) so existing SHA
+  // rulepacks resolve unchanged. We deliberately do NOT fall back from a named
+  // payer to the flat layout — a missing payer rulepack must error rather than
+  // silently audit against another payer's rules.
+  const candidates = payerSlug
+    ? versionCandidates.map((candidate) => path.join(payerSlug, candidate))
+    : versionCandidates;
 
   let versionDir: string | null = null;
   let manifest: ParsedManifest | null = null;

@@ -5,7 +5,26 @@
 import { z } from 'zod';
 import { ClaimType, VisitType } from '../types/claim.js';
 import { DocumentType } from '../types/document.js';
+import { PayerStatus } from '../types/payer.js';
 import { PreauthorizationStatus } from '../types/preauthorization.js';
+
+// --- Payers ---
+
+/** Query params for `GET /v1/payers`. */
+export const ListPayersQuerySchema = z.object({
+  status: z.nativeEnum(PayerStatus).optional(),
+  // Accepts a boolean (programmatic) or a query-string flag ('true'/'false').
+  includeInactive: z
+    .union([z.boolean(), z.string()])
+    .optional()
+    .transform((value) => value === true || value === 'true'),
+});
+export type ListPayersQuery = z.infer<typeof ListPayersQuerySchema>;
+
+/** Path param for `GET /v1/payers/:slug`. */
+export const PayerSlugParamSchema = z.object({
+  slug: z.string().min(1).max(64),
+});
 
 // --- Claims ---
 
