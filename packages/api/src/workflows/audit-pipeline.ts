@@ -654,6 +654,166 @@ export class AuditPipelineService {
     });
   }
 
+  /**
+   * Document-less structured scoring for the public `/v1/claims/score` endpoint.
+   * Evaluates the claim's structured fields against its payer's rulepack (no ML /
+   * documents — document-dependent rules deterministically return INCOMPLETE),
+   * persists an audit session (recording payer + rulepack version), and returns it.
+   * Fails closed when the payer has no authoritative rulepack.
+   */
+  async scoreClaimStructured(params: ExecuteAuditPipelineParams): Promise<AuditSessionResult> {
+    const locale = params.locale ?? 'en';
+    const startedAt = new Date();
+
+    const claim = await this.loadClaimContext(params.claimId, params.tenantId);
+    const payer = this.resolveClaimPayer(claim.row);
+    const engine = this.engineRegistry.getEngineForPayer({
+      slug: payer.slug,
+      rulepackVersion: payer.rulepackVersion,
+    });
+
+    const registryResults = await this.fetchRegistryDataStub(claim.row);
+    const tariffs = await this.loadActiveTariffs();
+
+    const input: RuleEngineInput = {
+      claim: {
+        id: claim.row.id,
+        claimType: claim.row.claim_type,
+        tenantId: claim.row.tenant_id,
+        facilityId: claim.row.facility_id,
+        admissionDate: toDateOnly(claim.row.admission_date),
+        dischargeDate: claim.row.discharge_date ? toDateOnly(claim.row.discharge_date) : null,
+        patientShaId: claim.row.patient_sha_id,
+        patientName: claim.row.patient_name_enc,
+        patientNationalId: claim.row.patient_national_id_enc,
+        primaryDiagnosisCode: claim.row.primary_diagnosis_code,
+        lines: claim.lines.map((line) => ({
+          id: line.id,
+          claimId: line.claim_id,
+          lineNumber: line.line_number,
+          shaServiceCode: line.sha_service_code,
+          description: line.description,
+          icdCode: line.icd_code,
+          procedureCode: line.procedure_code,
+          caseCode: line.case_code,
+          quantity: line.quantity,
+          unitPrice: toNumber(line.unit_price) ?? 0,
+          totalAmount: toNumber(line.total_amount) ?? 0,
+          billAmount: toNumber(line.bill_amount),
+          preauthNumber: line.preauth_number,
+          status: line.status,
+          validationNotes: line.validation_notes,
+          createdAt: toIso(line.created_at) ?? new Date().toISOString(),
+        })),
+      },
+      extractedFields: new Map(),
+      documents: [],
+      facilityContext: {
+        facilityId: claim.row.facility_id,
+        facilityCode: claim.row.facility_sha_code ?? undefined,
+        facilityTier: claim.row.facility_tier ?? undefined,
+      },
+      tariffs,
+      registryResults,
+    };
+
+    const evaluation = await engine.evaluate(input, locale);
+
+    const counts = {
+      passed: evaluation.results.filter((result) => result.result === RuleResultStatus.PASS).length,
+      failed: evaluation.results.filter((result) => result.result === RuleResultStatus.FAIL).length,
+      warning: evaluation.results.filter((result) => result.result === RuleResultStatus.WARNING).length,
+      incomplete: evaluation.results.filter((result) => result.result === RuleResultStatus.INCOMPLETE).length,
+      skipped: evaluation.results.filter((result) => result.result === RuleResultStatus.SKIPPED).length,
+    };
+
+    const deterministicScore = evaluation.totalRules > 0 ? counts.passed / evaluation.totalRules : 0;
+    const rulepackVersion = evaluation.rulepackVersion ?? engine.activeVersion;
+    const loaderPayerSlug = payer.slug === DEFAULT_PAYER_SLUG ? undefined : payer.slug;
+    const rulepackChecksum = await this.resolveRulepackChecksum(rulepackVersion, loaderPayerSlug);
+
+    const sessionInsert = await this.pool.query<{ id: string }>(
+      `INSERT INTO audit_sessions (
+          claim_id, user_id, rulepack_version, rulepack_checksum, decision,
+          total_rules, passed_count, failed_count, warning_count, incomplete_count,
+          skipped_count, deterministic_score, ml_quality_score, fix_report_md,
+          execution_time_ms, started_at, completed_at, payer_id, payer_slug
+        ) VALUES (
+          $1::uuid, $2::uuid, $3, $4, $5::audit_decision,
+          $6, $7, $8, $9, $10,
+          $11, $12, NULL, $13,
+          $14, $15::timestamptz, now(), $16::uuid, $17
+        )
+        RETURNING id`,
+      [
+        params.claimId,
+        params.userId,
+        rulepackVersion,
+        rulepackChecksum,
+        evaluation.decision,
+        evaluation.totalRules,
+        counts.passed,
+        counts.failed,
+        counts.warning,
+        counts.incomplete,
+        counts.skipped,
+        deterministicScore,
+        evaluation.fixReportMarkdown,
+        Math.round(evaluation.executionTimeMs),
+        startedAt.toISOString(),
+        payer.id,
+        payer.slug,
+      ],
+    );
+
+    const auditSessionId = sessionInsert.rows[0]?.id;
+
+    if (!auditSessionId) {
+      throw new DomainError(ErrorCode.INTERNAL_ERROR, 'Failed to create audit session');
+    }
+
+    for (const result of evaluation.results) {
+      await this.pool.query(
+        `INSERT INTO rule_results (
+            audit_session_id, rule_id, category, severity, result,
+            message, remediation, evidence_json, execution_time_ms
+          ) VALUES (
+            $1::uuid, $2, $3::rule_category, $4::rule_severity, $5::rule_result_status,
+            $6, $7, $8::jsonb, $9
+          )`,
+        [
+          auditSessionId,
+          result.ruleId,
+          result.category,
+          result.severity,
+          result.result,
+          result.message,
+          result.remediation,
+          JSON.stringify(result.evidence ?? {}),
+          Math.round(result.executionTimeMs),
+        ],
+      );
+    }
+
+    await this.pool.query(
+      `UPDATE claims SET last_audit_session_id = $2::uuid, updated_at = now() WHERE id = $1::uuid`,
+      [params.claimId, auditSessionId],
+    );
+
+    await this.pool.query(
+      `INSERT INTO audit_trail (tenant_id, claim_id, user_id, action, detail_json)
+       VALUES ($1::uuid, $2::uuid, $3::uuid, 'AUDIT_COMPLETED'::audit_action, $4::jsonb)`,
+      [
+        params.tenantId,
+        params.claimId,
+        params.userId,
+        JSON.stringify({ source: 'score', auditSessionId, decision: evaluation.decision }),
+      ],
+    );
+
+    return this.getAuditById({ auditId: auditSessionId, tenantId: params.tenantId });
+  }
+
   async getLatestAuditForClaim(params: FindLatestAuditParams): Promise<AuditSessionResult> {
     const sessionResult = await this.pool.query<AuditSessionRow>(
       `SELECT a.*

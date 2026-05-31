@@ -26,6 +26,59 @@ export const PayerSlugParamSchema = z.object({
   slug: z.string().min(1).max(64),
 });
 
+// --- Scoring (FHIR R4 Claim subset for POST /v1/claims/score) ---
+
+const FhirCodingSchema = z.object({
+  system: z.string().optional(),
+  code: z.string().optional(),
+  display: z.string().optional(),
+});
+
+const FhirCodeableConceptSchema = z.object({
+  coding: z.array(FhirCodingSchema).optional(),
+  text: z.string().optional(),
+});
+
+const FhirMoneySchema = z.object({ value: z.number(), currency: z.string().optional() });
+const FhirQuantitySchema = z.object({ value: z.number() });
+
+const FhirClaimItemSchema = z.object({
+  sequence: z.number().int().optional(),
+  productOrService: FhirCodeableConceptSchema,
+  quantity: FhirQuantitySchema.optional(),
+  unitPrice: FhirMoneySchema.optional(),
+  net: FhirMoneySchema.optional(),
+});
+
+const FhirClaimDiagnosisSchema = z.object({
+  sequence: z.number().int().optional(),
+  diagnosisCodeableConcept: FhirCodeableConceptSchema.optional(),
+});
+
+/** Pragmatic subset of a FHIR R4 Claim resource accepted by the scoring endpoint. */
+export const FhirClaimResourceSchema = z.object({
+  resourceType: z.literal('Claim'),
+  use: z.string().optional(),
+  patient: z
+    .object({
+      identifier: z.object({ system: z.string().optional(), value: z.string() }).optional(),
+      display: z.string().optional(),
+    })
+    .optional(),
+  type: FhirCodeableConceptSchema.optional(),
+  billablePeriod: z.object({ start: z.string(), end: z.string().optional() }).optional(),
+  diagnosis: z.array(FhirClaimDiagnosisSchema).optional(),
+  item: z.array(FhirClaimItemSchema).optional(),
+});
+export type FhirClaimResource = z.infer<typeof FhirClaimResourceSchema>;
+
+export const ScoreClaimSchema = z.object({
+  facilityId: z.string().uuid(),
+  payerId: z.string().uuid().optional(),
+  claim: FhirClaimResourceSchema,
+});
+export type ScoreClaimInput = z.infer<typeof ScoreClaimSchema>;
+
 // --- Claims ---
 
 export const CreateClaimSchema = z.object({

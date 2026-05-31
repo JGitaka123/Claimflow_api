@@ -1,6 +1,7 @@
 # Scoring Endpoint Design — `POST /v1/claims/score`
 
-> Backlog item 3. Status: **in progress.** This plan lands before the implementation per the
+> Backlog item 3. Status: **implemented** (core). The Auditor-General typology mapping remains a
+> follow-up pending the authoritative list. This plan landed before the implementation per the
 > operating rules.
 
 ## Purpose
