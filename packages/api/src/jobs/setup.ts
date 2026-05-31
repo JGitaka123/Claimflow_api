@@ -5,7 +5,10 @@ import type { Readable } from 'node:stream';
 import { DomainError, ErrorCode } from '@claimflow/shared';
 import type { Config } from '../config.js';
 import { createExportService } from '../services/export-service.js';
+import { createWebhookService, type WebhookService } from '../services/webhook-service.js';
 import { createAuditPipelineService } from '../workflows/audit-pipeline.js';
+
+const WEBHOOK_DISPATCH_INTERVAL_MS = 30_000;
 import { createBatchAuditHandler } from './handlers/batch-audit.js';
 import { createGenerateExportHandler } from './handlers/generate-export.js';
 import { createProcessDocumentHandler } from './handlers/process-document.js';
@@ -221,8 +224,10 @@ export class JobQueueManager {
   private readonly boss: PgBoss;
   private readonly auditPipeline: ReturnType<typeof createAuditPipelineService>;
   private readonly exportService: ReturnType<typeof createExportService>;
+  private readonly webhookService: WebhookService;
   private started = false;
   private workersRegistered = false;
+  private webhookDispatchTimer: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly pool: Pool,
@@ -236,9 +241,15 @@ export class JobQueueManager {
 
     this.auditPipeline = createAuditPipelineService(this.pool, this.logger, this.config);
     this.exportService = createExportService(this.pool, this.logger, this.config);
+    this.webhookService = createWebhookService(this.pool, this.logger);
   }
 
   async stop(): Promise<void> {
+    if (this.webhookDispatchTimer) {
+      clearInterval(this.webhookDispatchTimer);
+      this.webhookDispatchTimer = null;
+    }
+
     if (!this.started) {
       return;
     }
@@ -600,9 +611,25 @@ export class JobQueueManager {
 
     await this.boss.start();
     await this.registerWorkers();
+    this.startWebhookDispatcher();
     this.started = true;
 
     this.logger.info('pg-boss queue started');
+  }
+
+  private startWebhookDispatcher(): void {
+    if (this.webhookDispatchTimer) {
+      return;
+    }
+
+    this.webhookDispatchTimer = setInterval(() => {
+      this.webhookService
+        .dispatchDueDeliveries()
+        .catch((error) => this.logger.warn({ err: error }, 'webhook dispatch cycle failed'));
+    }, WEBHOOK_DISPATCH_INTERVAL_MS);
+
+    // Don't keep the process alive solely for webhook polling.
+    this.webhookDispatchTimer.unref?.();
   }
 
   private async registerWorkers(): Promise<void> {
