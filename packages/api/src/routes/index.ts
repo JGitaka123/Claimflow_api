@@ -9,6 +9,7 @@ import extractionRoutes from './extraction.js';
 import dashboardRoutes from './dashboard.js';
 import adminRoutes from './admin.js';
 import payerRoutes from './payers.js';
+import webhookRoutes from './webhooks.js';
 import preauthorizationRoutes from './preauthorizations.js';
 
 const apiRoutes: FastifyPluginAsync = async (fastify) => {
@@ -26,6 +27,7 @@ const apiRoutes: FastifyPluginAsync = async (fastify) => {
   await fastify.register(dashboardRoutes);
   await fastify.register(adminRoutes);
   await fastify.register(payerRoutes);
+  await fastify.register(webhookRoutes);
   await fastify.register(preauthorizationRoutes);
 };
 

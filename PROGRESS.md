@@ -11,7 +11,7 @@ Status legend: ✅ done · 🟡 in progress · ⛔ blocked · ⬜ not started
 | 1b | Multi-payer threading (Phase 1, slice 2) | 🟡 in review | _this PR_ |
 | 2 | Foundation follow-ups: backfill SHA `payer_id`, tighten to `NOT NULL` | 🟡 in review (stacked on 1b) | _stacked PR_ |
 | 3 | Scoring endpoint (`POST /v1/claims/score`, FHIR input, reason codes, problem+json) | 🟡 in review (stacked) | _stacked PR_ |
-| 4 | Async + batch + signed webhooks | ⬜ not started | — |
+| 4 | Async + batch + signed webhooks | 🟡 in review (stacked) — webhooks done; async `/batch` endpoint = follow-up | _stacked PR_ |
 | 5 | Case management API | ⬜ not started | — |
 | 6 | Multi-tenancy, auth, rate limiting | ⛔ STOP GATE (auth model + tenancy isolation decision) | — |
 | 7 | Observability + ops + usage metering | ⬜ not started | — |
@@ -73,6 +73,20 @@ Status legend: ✅ done · 🟡 in progress · ⛔ blocked · ⬜ not started
 - **SHA Auditor-General fraud/error typology list** (codes + names, ideally a finding→typology
   mapping). Drop in `reference-data/`. Until then `auditorGeneralTypology` stays `null`; the
   scoring endpoint is fully functional with ClaimFlow reason codes.
+
+### 4 — Signed webhooks (in review, stacked)
+- `webhook_endpoints` + `webhook_deliveries` (migration `019`); tenant-scoped endpoint CRUD at
+  `/v1/webhooks` (+ `/:id/deliveries` log). Signing secret returned once on create.
+- HMAC-SHA256 Stripe-style signatures (`X-ClaimFlow-Signature: t=…,v1=…`) + `verifyWebhookSignature`
+  helper; stale-timestamp + tamper rejection.
+- Delivery decoupled from pg-boss: emission inserts signed PENDING rows; a dispatcher delivers due
+  rows with exponential backoff via `next_attempt_at` (FAILED → retry, then EXHAUSTED). Injectable
+  sender → deterministic tests. A periodic in-process dispatcher runs the cycle.
+- `claim.flagged` emitted from the audit pipeline (single audit, batch, and structured scoring) when
+  the decision is not PASSED; payload is public-safe (no rule internals).
+- Tests: signing unit tests; integration for CRUD (secret hidden on list), signed delivery + verify,
+  backoff on failure, and emission via the score endpoint.
+- **Follow-up:** async `POST /v1/claims/batch` submission endpoint; `case.status_changed` with item 5.
 
 ### STOP GATES pending my input
 - **Item 6** — default auth model (OAuth2 client-credentials vs. tenant-scoped API keys vs.

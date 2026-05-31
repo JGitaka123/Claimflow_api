@@ -1,11 +1,12 @@
 
 import {
+  AuditDecision,
   ClaimStatus,
   ErrorCode,
   FieldConfidenceTier,
   RuleResultStatus,
   DomainError,
-  type AuditDecision,
+  WebhookEventType,
   type ClaimType,
   type RuleCategory,
   type RuleSeverity,
@@ -31,6 +32,7 @@ import {
   DEFAULT_PAYER_SLUG,
   type RuleEngineRegistry,
 } from './rule-engine-registry.js';
+import { createWebhookService, type WebhookService } from '../services/webhook-service.js';
 
 interface ClaimContextRow extends QueryResultRow {
   id: string;
@@ -304,6 +306,7 @@ export class AuditPipelineService {
   private readonly mlClient: MlClient;
   private readonly stateMachine: ReturnType<typeof createStateMachineWorkflow>;
   private readonly registryCircuitBreaker: CircuitBreaker<[], RegistryLookupResults>;
+  private readonly webhookService: WebhookService;
 
   constructor(
     private readonly pool: Pool,
@@ -324,6 +327,7 @@ export class AuditPipelineService {
       });
 
     this.stateMachine = createStateMachineWorkflow(pool);
+    this.webhookService = createWebhookService(pool, logger);
 
     this.registryCircuitBreaker = new CircuitBreaker({
       failureThreshold: 5,
@@ -648,6 +652,14 @@ export class AuditPipelineService {
       ],
     );
 
+    await this.emitClaimFlagged({
+      tenantId: params.tenantId,
+      claimId: params.claimId,
+      auditSessionId,
+      decision: evaluation.decision,
+      payerSlug: payer.slug,
+    });
+
     return this.getAuditById({
       auditId: auditSessionId,
       tenantId: params.tenantId,
@@ -810,6 +822,14 @@ export class AuditPipelineService {
         JSON.stringify({ source: 'score', auditSessionId, decision: evaluation.decision }),
       ],
     );
+
+    await this.emitClaimFlagged({
+      tenantId: params.tenantId,
+      claimId: params.claimId,
+      auditSessionId,
+      decision: evaluation.decision,
+      payerSlug: payer.slug,
+    });
 
     return this.getAuditById({ auditId: auditSessionId, tenantId: params.tenantId });
   }
@@ -1236,6 +1256,34 @@ export class AuditPipelineService {
         return candidates.find((candidate) => candidate.facilityTier === 'ALL') ?? candidates[0] ?? null;
       },
     };
+  }
+
+  /**
+   * Emit a `claim.flagged` webhook event when an audit decision is not PASSED.
+   * Best-effort: a webhook failure never fails the audit. The payload is
+   * public-safe (no rule internals).
+   */
+  private async emitClaimFlagged(params: {
+    tenantId: string;
+    claimId: string;
+    auditSessionId: string;
+    decision: AuditDecision | null;
+    payerSlug: string;
+  }): Promise<void> {
+    if (params.decision === null || params.decision === AuditDecision.PASSED) {
+      return;
+    }
+
+    try {
+      await this.webhookService.enqueueEvent(this.pool, params.tenantId, WebhookEventType.CLAIM_FLAGGED, {
+        claimId: params.claimId,
+        auditId: params.auditSessionId,
+        payerSlug: params.payerSlug,
+        decision: params.decision,
+      });
+    } catch (error) {
+      this.logger.warn({ err: error, claimId: params.claimId }, 'failed to enqueue claim.flagged webhook');
+    }
   }
 
   private async resolveRulepackChecksum(version: string, payerSlug?: string): Promise<string> {
