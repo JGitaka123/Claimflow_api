@@ -2,6 +2,7 @@ import fp from 'fastify-plugin';
 import type { FastifyPluginAsync } from 'fastify';
 import authRoutes from './auth.js';
 import claimsRoutes from './claims.js';
+import scoreRoutes from './score.js';
 import auditRoutes from './audit.js';
 import documentsRoutes from './documents.js';
 import extractionRoutes from './extraction.js';
@@ -18,6 +19,7 @@ const apiRoutes: FastifyPluginAsync = async (fastify) => {
 
   await fastify.register(authRoutes);
   await fastify.register(claimsRoutes);
+  await fastify.register(scoreRoutes);
   await fastify.register(auditRoutes);
   await fastify.register(documentsRoutes);
   await fastify.register(extractionRoutes);

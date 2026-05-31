@@ -10,7 +10,7 @@ Status legend: ✅ done · 🟡 in progress · ⛔ blocked · ⬜ not started
 | 1a | Payer-catalog foundation (Phase 1, slice 1) | ✅ done | [#1](https://github.com/JGitaka123/Claimflow_api/pull/1) (merged) |
 | 1b | Multi-payer threading (Phase 1, slice 2) | 🟡 in review | _this PR_ |
 | 2 | Foundation follow-ups: backfill SHA `payer_id`, tighten to `NOT NULL` | 🟡 in review (stacked on 1b) | _stacked PR_ |
-| 3 | Scoring endpoint hardening (`POST /v1/claims/score`, FHIR input, reason codes, problem+json) | ⬜ not started | — |
+| 3 | Scoring endpoint (`POST /v1/claims/score`, FHIR input, reason codes, problem+json) | 🟡 in review (stacked) | _stacked PR_ |
 | 4 | Async + batch + signed webhooks | ⬜ not started | — |
 | 5 | Case management API | ⬜ not started | — |
 | 6 | Multi-tenancy, auth, rate limiting | ⛔ STOP GATE (auth model + tenancy isolation decision) | — |
@@ -52,6 +52,27 @@ Status legend: ✅ done · 🟡 in progress · ⛔ blocked · ⬜ not started
 > Stacked on `claude/slice-2-payer-threading` because `NOT NULL` is only safe once slice 2's
 > create path (which always sets `payer_id`) is in place. PR base will be retargeted to `main`
 > after 1b merges.
+
+### 3 — Scoring endpoint (in review, stacked on item 2)
+- `POST /v1/claims/score`: accepts a FHIR R4 Claim subset, persists a claim (reusing
+  `claim-service`: payer resolution, dedup, idempotency, audit trail) + a document-less audit
+  session, returns a public-safe score.
+- Public output: `riskScore` / `riskLevel` / `recommendedAction` / `flags[]` (reasonCode,
+  category, severity, message) / `counts`. **No rule internals** (thresholds, logic keys, params,
+  evidence) — enforced by a test.
+- Reason codes: ClaimFlow taxonomy (`CF-<ruleId>`); `auditorGeneralTypology` is `null` until the
+  authoritative list is supplied (decision: build now / map later).
+- Errors: RFC 7807 `application/problem+json`, scoped to public endpoints only.
+- Fail-closed on non-ACTIVE payer; idempotent via `Idempotency-Key`.
+- Tests: mapper unit tests + integration (score/persist/no-internals, problem+json, fail-closed,
+  invalid FHIR, idempotent replay).
+- **Follow-up (blocked):** Auditor-General typology mapping needs the authoritative typology list
+  (see STOP GATE below). List-endpoint pagination/filtering already satisfied by the claims list.
+
+### Data needed (blocking a follow-up, not the endpoint)
+- **SHA Auditor-General fraud/error typology list** (codes + names, ideally a finding→typology
+  mapping). Drop in `reference-data/`. Until then `auditorGeneralTypology` stays `null`; the
+  scoring endpoint is fully functional with ClaimFlow reason codes.
 
 ### STOP GATES pending my input
 - **Item 6** — default auth model (OAuth2 client-credentials vs. tenant-scoped API keys vs.
