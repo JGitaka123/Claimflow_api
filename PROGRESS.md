@@ -9,7 +9,7 @@ Status legend: ✅ done · 🟡 in progress · ⛔ blocked · ⬜ not started
 |---|------|--------|----|
 | 1a | Payer-catalog foundation (Phase 1, slice 1) | ✅ done | [#1](https://github.com/JGitaka123/Claimflow_api/pull/1) (merged) |
 | 1b | Multi-payer threading (Phase 1, slice 2) | 🟡 in review | _this PR_ |
-| 2 | Foundation follow-ups: backfill SHA `payer_id`, tighten to `NOT NULL` | ⬜ not started | — |
+| 2 | Foundation follow-ups: backfill SHA `payer_id`, tighten to `NOT NULL` | 🟡 in review (stacked on 1b) | _stacked PR_ |
 | 3 | Scoring endpoint hardening (`POST /v1/claims/score`, FHIR input, reason codes, problem+json) | ⬜ not started | — |
 | 4 | Async + batch + signed webhooks | ⬜ not started | — |
 | 5 | Case management API | ⬜ not started | — |
@@ -41,6 +41,17 @@ Status legend: ✅ done · 🟡 in progress · ⛔ blocked · ⬜ not started
   each claim against its own payer.
 - Tests: registry unit tests; `payer-threading` integration (default/explicit/COMING_SOON/
   unknown payer + detail reads); audit-session payer-recording assertion.
+
+### 2 — Payer foundation follow-ups (in review, stacked on 1b)
+- Migration `018`: backfill claims with NULL `payer_id` to SHA, then `claims.payer_id SET NOT NULL`
+  (safe path — backfill before constraint; API always sets it; reversible).
+- Updated direct claim inserts (rbac + state-machine integration tests, `seed-test-data.sh`) to
+  set the SHA payer, since the column is now mandatory.
+- Test: asserts `claims.payer_id` is `NOT NULL` via `information_schema`.
+
+> Stacked on `claude/slice-2-payer-threading` because `NOT NULL` is only safe once slice 2's
+> create path (which always sets `payer_id`) is in place. PR base will be retargeted to `main`
+> after 1b merges.
 
 ### STOP GATES pending my input
 - **Item 6** — default auth model (OAuth2 client-credentials vs. tenant-scoped API keys vs.
