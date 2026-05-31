@@ -193,6 +193,7 @@ boot. Copy `.env.example` → `.env`. Notable vars (defaults in parens):
 - **Strict TypeScript — no `any`.** `tsconfig.base.json`: ES2022, `module`/`moduleResolution` = `Node16`, `strict`, `noUncheckedIndexedAccess`, `noUnusedLocals`, `noUnusedParameters`, `composite`/`incremental` project refs. (`exactOptionalPropertyTypes` is currently `false`.)
 - **ESM everywhere** (`"type": "module"`, Node16 resolution): relative imports must use explicit `.js` extensions (e.g. `import { loadRulepack } from './loader.js'`).
 - **Multi-tenancy:** every domain table carries `tenant_id`; **every query must be tenant-scoped.** The `tenant` plugin enforces request scoping — never bypass it.
+- **Multi-payer:** claims carry a `payer_id` (FK to the global `payers` catalog; reference data, not tenant-scoped). The audit pipeline evaluates each claim against *its payer's* rulepack via the per-payer `RuleEngine` registry, and records `payer_id`/`payer_slug` on every `audit_sessions` row. **Adjudication fails closed** — a payer without an authoritative rulepack (`status <> ACTIVE`) is never audited and stays `COMING_SOON`. Rulepacks are payer-namespaced (`rulepacks/<slug>/<version>/`; SHA keeps the legacy flat layout). See `docs/multi-payer-design.md`.
 - **API envelope:** all responses use `{ data, meta?, errors? }`.
 - **Validation:** Zod for request validation and shared domain schemas (`@claimflow/shared`, `rule-engine/types.ts`); derive types with `z.infer`.
 - **Dates:** ISO 8601 strings everywhere.

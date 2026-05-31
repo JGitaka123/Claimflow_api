@@ -76,6 +76,10 @@ interface ClaimRow extends QueryResultRow {
   id: string;
   tenant_id: string;
   facility_id: string;
+  payer_id: string | null;
+  // Populated only on joined reads (list / detail); absent on INSERT/UPDATE RETURNING.
+  payer_slug?: string | null;
+  payer_name?: string | null;
   patient_sha_id: string | null;
   patient_name_enc: string | null;
   patient_national_id_enc: string | null;
@@ -160,6 +164,9 @@ function mapClaim(row: ClaimRow): Claim {
     id: row.id,
     tenantId: row.tenant_id,
     facilityId: row.facility_id,
+    payerId: row.payer_id,
+    payerSlug: row.payer_slug ?? null,
+    payerName: row.payer_name ?? null,
     patientShaId: row.patient_sha_id,
     patientName: row.patient_name_enc,
     patientNationalId: row.patient_national_id_enc,
@@ -210,6 +217,8 @@ function mapClaimSummary(row: ListClaimRow): ClaimSummary {
     id: row.id,
     status: row.status,
     version: row.version,
+    payerId: row.payer_id,
+    payerSlug: row.payer_slug ?? null,
     claimType: row.claim_type,
     visitType: row.visit_type,
     hmisRef: row.hmis_ref,
@@ -283,6 +292,76 @@ async function withTransaction<T>(pool: Pool, callback: (client: PoolClient) => 
   }
 }
 
+interface PayerLookupRow extends QueryResultRow {
+  id: string;
+  slug: string;
+  name: string;
+  status: string;
+}
+
+/**
+ * Resolve the payer for a new claim. Defaults to the SHA payer when none is given.
+ * Fails closed (400) on an unknown or non-ACTIVE payer so claims are never created
+ * against a payer that cannot be audited.
+ */
+async function resolveClaimPayer(
+  client: PoolClient,
+  payerId: string | undefined,
+): Promise<{ id: string; slug: string; name: string }> {
+  if (payerId) {
+    const result = await client.query<PayerLookupRow>(
+      `SELECT id, slug, name, status::text AS status FROM payers WHERE id = $1::uuid`,
+      [payerId],
+    );
+
+    const row = result.rows[0];
+
+    if (!row) {
+      throw new DomainError(ErrorCode.VALIDATION_ERROR, 'Unknown payer', { field: 'payerId' });
+    }
+
+    if (row.status !== 'ACTIVE') {
+      throw new DomainError(
+        ErrorCode.VALIDATION_ERROR,
+        `Payer '${row.slug}' is not active for new claims`,
+        { field: 'payerId' },
+      );
+    }
+
+    return { id: row.id, slug: row.slug, name: row.name };
+  }
+
+  const result = await client.query<PayerLookupRow>(
+    `SELECT id, slug, name, status::text AS status FROM payers WHERE slug = 'sha'`,
+  );
+
+  const row = result.rows[0];
+
+  if (!row) {
+    throw new DomainError(ErrorCode.INTERNAL_ERROR, 'Default SHA payer is not configured');
+  }
+
+  return { id: row.id, slug: row.slug, name: row.name };
+}
+
+async function attachPayerInfo(client: PoolClient | Pool, claim: Claim): Promise<void> {
+  if (!claim.payerId) {
+    return;
+  }
+
+  const result = await client.query<{ slug: string; name: string }>(
+    `SELECT slug, name FROM payers WHERE id = $1::uuid`,
+    [claim.payerId],
+  );
+
+  const row = result.rows[0];
+
+  if (row) {
+    claim.payerSlug = row.slug;
+    claim.payerName = row.name;
+  }
+}
+
 async function fetchClaimLines(client: PoolClient | Pool, claimId: string): Promise<ClaimLine[]> {
   const linesResult = await client.query<ClaimLineRow>(
     `SELECT *
@@ -345,10 +424,13 @@ export class ClaimService {
         throw new DomainError(ErrorCode.DUPLICATE_CLAIM, 'Duplicate claim detected');
       }
 
+      const payer = await resolveClaimPayer(client, body.payerId);
+
       const claimInsert = await client.query<ClaimRow>(
         `INSERT INTO claims (
             tenant_id,
             facility_id,
+            payer_id,
             patient_sha_id,
             patient_name_enc,
             patient_national_id_enc,
@@ -367,26 +449,28 @@ export class ClaimService {
           ) VALUES (
             $1::uuid,
             $2::uuid,
-            $3,
+            $3::uuid,
             $4,
             $5,
             $6,
-            $7::claim_type,
-            $8::visit_type,
-            $9::date,
+            $7,
+            $8::claim_type,
+            $9::visit_type,
             $10::date,
-            $11,
+            $11::date,
             $12,
             $13,
             $14,
-            'DRAFT'::claim_status,
             $15,
-            $16::uuid
+            'DRAFT'::claim_status,
+            $16,
+            $17::uuid
           )
           RETURNING *`,
         [
           tenantId,
           body.facilityId,
+          payer.id,
           body.patientShaId ?? null,
           body.patientName ?? null,
           body.patientNationalId ?? null,
@@ -494,6 +578,8 @@ export class ClaimService {
       );
 
       const claim = mapClaim(claimRow);
+      claim.payerSlug = payer.slug;
+      claim.payerName = payer.name;
       claim.lines = insertedLines;
 
       const payload: ApiResponse<{ claim: Claim; lines: ClaimLine[] }> = {
@@ -596,11 +682,14 @@ export class ClaimService {
     const sql = `
       SELECT
         c.*,
+        p.slug AS payer_slug,
+        p.name AS payer_name,
         COALESCE(lines.line_count, 0)::int AS line_count,
         COALESCE(lines.total_amount, 0)::numeric AS total_amount,
         COALESCE(docs.document_count, 0)::int AS document_count,
         latest.decision::text AS last_audit_decision
       FROM claims c
+      LEFT JOIN payers p ON p.id = c.payer_id
       LEFT JOIN LATERAL (
         SELECT
           COUNT(*) AS line_count,
@@ -663,10 +752,11 @@ export class ClaimService {
     this.logger.debug({ tenantId, claimId }, 'get claim detail request');
 
     const claimResult = await this.pool.query<ClaimRow>(
-      `SELECT *
-         FROM claims
-        WHERE id = $1::uuid
-          AND tenant_id = $2::uuid
+      `SELECT c.*, p.slug AS payer_slug, p.name AS payer_name
+         FROM claims c
+         LEFT JOIN payers p ON p.id = c.payer_id
+        WHERE c.id = $1::uuid
+          AND c.tenant_id = $2::uuid
         LIMIT 1`,
       [claimId, tenantId],
     );
@@ -921,6 +1011,7 @@ export class ClaimService {
       );
 
       const claim = mapClaim(updatedClaimRow);
+      await attachPayerInfo(client, claim);
       const lines = await fetchClaimLines(client, claimId);
       claim.lines = lines;
 
