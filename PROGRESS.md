@@ -8,14 +8,17 @@ Status legend: ✅ done · 🟡 in progress · ⛔ blocked · ⬜ not started
 | # | Item | Status | PR |
 |---|------|--------|----|
 | 1a | Payer-catalog foundation (Phase 1, slice 1) | ✅ done | [#1](https://github.com/JGitaka123/Claimflow_api/pull/1) (merged) |
-| 1b | Multi-payer threading (Phase 1, slice 2) | 🟡 in review | _this PR_ |
-| 2 | Foundation follow-ups: backfill SHA `payer_id`, tighten to `NOT NULL` | 🟡 in review (stacked on 1b) | _stacked PR_ |
-| 3 | Scoring endpoint (`POST /v1/claims/score`, FHIR input, reason codes, problem+json) | 🟡 in review (stacked) | _stacked PR_ |
-| 4 | Async + batch + signed webhooks | 🟡 in review (stacked) — webhooks done; async `/batch` endpoint = follow-up | _stacked PR_ |
-| 5 | Case management API | 🟡 in review (stacked) | _stacked PR_ |
-| 6 | Multi-tenancy, auth, rate limiting | 🟡 in progress — 6a API keys in review; 6b OAuth2 / 6c RLS / 6d limits+metering pending | _stacked PR_ |
+| 1b | Multi-payer threading (Phase 1, slice 2) | ✅ done | #2 (merged) |
+| 2 | Foundation follow-ups: backfill SHA `payer_id`, tighten to `NOT NULL` | ✅ done | #3 → landed via #8 |
+| 3 | Scoring endpoint (`POST /v1/claims/score`, FHIR input, reason codes, problem+json) | ✅ done | #4 → landed via #8 |
+| 4 | Async + batch + signed webhooks | ✅ webhooks done | #5 → landed via #8 — async `/batch` = follow-up |
+| 5 | Case management API | ✅ done | #6 → landed via #8 |
+| 6a | Tenant-scoped API keys (machine auth) | ⛔ STOP GATE — awaiting your merge | [#7](https://github.com/JGitaka123/Claimflow_api/pull/7) (open, CI-green) |
+| 6b | OAuth2 client-credentials | ⛔ STOP GATE — awaiting your merge | _this PR_ (stacked on #7) |
+| 6c | Postgres Row-Level Security | ⛔ STOP GATE — blocked on 6a/6b merge | — |
+| 6d | Per-tenant + per-key rate limiting & metering | ⛔ STOP GATE — not started | — |
 | 7 | Observability + ops + usage metering | ⬜ not started | — |
-| 8 | Developer experience: interactive docs, sandbox, SDKs | ⬜ not started | — |
+| 8 | Developer experience: interactive docs, sandbox, SDKs | ⬜ not started — **OpenAPI 3.1 spec + CI sync check authored first** | — |
 | 9 | Compliance scaffolding (audit-log immutability, retention, DPA-2019, no-PHI-in-CI) | ⬜ not started | — |
 
 ## Cross-cutting follow-ups / debts
@@ -105,11 +108,21 @@ limits/metering. See `docs/auth-and-tenancy-design.md`.
   `cf_`-prefixed key via `X-Api-Key` or `Bearer` and authorizes by scopes (least privilege; JWT path
   unchanged). Tests: create/list(secret hidden)/revoke, auth-via-key, scope enforcement,
   revoked/expired/unknown rejection.
-- **6b — OAuth2 client-credentials:** pending.
+- **6b — OAuth2 client-credentials (this PR, stacked on #7):** `oauth_clients` table (migration `022`,
+  sha-256 secret hash only, scopes, revoke); public `POST /v1/oauth/token`
+  (`grant_type=client_credentials`, RFC 6749 §4.4; form-encoded + JSON) issues a short-lived **RS256
+  JWT** (dedicated `claimflow-oauth` audience, `tenant` + space-delimited `scope` claims) reusing the
+  existing keypair; supports down-scoping; constant-time, fail-closed credential check. Auth plugin
+  verifies `type:'oauth_client'` Bearer JWTs and authorizes **by scope** (like API keys; never a role).
+  `/v1/oauth/clients` admin CRUD (`system:settings`, secret once). problem+json on the token endpoint.
+  Tests: 8 integration cases (create/list/revoke, token issuance + authenticated request, scope
+  enforcement, JSON+form, down-scope, scope-not-granted, bad credentials, revoked client, bad grant).
 - **6c — Postgres RLS backstop:** pending (cross-cutting; rolled out carefully with isolation tests).
 - **6d — per-tenant + per-key rate limiting & usage metering:** pending.
 
-### STOP GATES pending my input
-- **Item 6** — default auth model (OAuth2 client-credentials vs. tenant-scoped API keys vs.
-  both) and tenancy isolation strategy (shared schema + row scoping vs. schema-per-tenant vs.
-  DB-per-tenant). I will pause with options + a recommendation before implementing.
+### STOP GATES (per the merge policy — I build, you merge)
+OAuth2/identity, Postgres RLS, rate-limiting/quota, anything gating/handling PHI, destructive/breaking
+migrations, and the first OpenAPI spec publication all require your explicit merge.
+- **6a (#7) + 6b (this PR)** are machine **auth/identity** → built, CI-gated, **awaiting your merge**.
+  Per the "never more than 2 unmerged stacked" rule, I am **pausing after 6b** rather than stacking
+  6c/6d on an unmerged tower. Merge #7 then 6b (in order) and I'll proceed to 6c (RLS).

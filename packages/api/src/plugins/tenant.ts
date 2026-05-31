@@ -10,6 +10,7 @@ const PUBLIC_PATHS = new Set([
   '/v1/auth/mfa/verify',
   '/v1/auth/refresh',
   '/v1/auth/logout',
+  '/v1/oauth/token',
 ]);
 
 function normalizePath(path: string): string {

@@ -12,6 +12,7 @@ export * from './types/webhook.js';
 export * from './types/case.js';
 export * from './types/auth.js';
 export * from './types/api-key.js';
+export * from './types/oauth-client.js';
 export * from './types/api.js';
 export * from './types/fhir.js';
 export * from './types/preauthorization.js';

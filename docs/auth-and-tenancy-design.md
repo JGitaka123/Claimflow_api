@@ -29,10 +29,29 @@
   `DELETE /v1/api-keys/:id` (revoke). Permission `system:settings`.
 - `last_used_at` updated on use; expired/revoked keys rejected (fail closed).
 
-### 6b — OAuth2 client-credentials
-- `oauth_clients` table (client_id, hashed secret, scopes, tenant). `POST /v1/oauth/token`
-  (`grant_type=client_credentials`) issues a short-lived RS256 JWT with `tenant` + `scope` claims,
-  verified by the auth plugin (reusing the existing key infra).
+### 6b — OAuth2 client-credentials (implemented)
+- **migration `022`** — `oauth_clients` (`client_id`, **hashed** secret, `scopes`, `tenant_id`,
+  `created_by`, `last_used_at`, `revoked_at`). Only the SHA-256 hash of the secret is stored.
+- **shared** — `OAuthClient` / `OAuthTokenResponse` / `OAuthAccessTokenClaims` types,
+  `OAUTH_CLIENT_SCOPES` (shares the API-key scope vocabulary), `CreateOAuthClientSchema` +
+  `OAuthTokenRequestSchema`.
+- **`POST /v1/oauth/token`** (`grant_type=client_credentials`, RFC 6749 §4.4) — public; accepts
+  `application/x-www-form-urlencoded` (and JSON). Verifies the client (constant-time, fail-closed),
+  supports **down-scoping** (a requested `scope` must be a subset of the grant), and issues a
+  short-lived **RS256 JWT** (`type:'oauth_client'`, dedicated audience `claimflow-oauth`, `tenant` +
+  space-delimited `scope` claims) reusing the existing keypair. Response is `no-store`, `Bearer`,
+  with `expires_in` derived from the configured access-token TTL.
+- **auth plugin** — a non-`cf_` Bearer JWT whose `type` claim is `oauth_client` is verified via
+  `verifyOAuthAccessToken` and authorized **by scope** (never by a role), exactly like an API key.
+  `sub` is the provisioning user (so `created_by` FKs resolve); `cid` records the issuing client.
+- **admin CRUD** — `POST/GET/DELETE /v1/oauth/clients` (permission `system:settings`); secret shown
+  once at creation. Revoking a client stops new tokens being minted (issued tokens are stateless and
+  expire on their short TTL).
+- **errors** — RFC 7807 `application/problem+json`, scoped to `/v1/oauth/token`.
+- **tests** — 8 integration cases: client create (secret once) / list (hidden); token issuance +
+  authenticated request; scope enforcement (in-scope 201, out-of-scope 403); JSON + form-encoded;
+  down-scoping; scope-not-granted 403; invalid credentials 401; revoked client 401; unsupported
+  grant 400. Synthetic data only.
 
 ### 6c — Postgres Row-Level Security
 - Enable RLS on tenant-scoped tables with a policy keyed off a per-transaction GUC

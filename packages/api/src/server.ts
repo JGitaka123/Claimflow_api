@@ -81,6 +81,21 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
     },
   });
 
+  // OAuth2 token requests are application/x-www-form-urlencoded (RFC 6749 §4.4).
+  // Parse into a plain object; the route validates it with Zod. Dependency-free.
+  app.addContentTypeParser(
+    'application/x-www-form-urlencoded',
+    { parseAs: 'string' },
+    (_request, body, done) => {
+      try {
+        const params = new URLSearchParams(typeof body === 'string' ? body : body.toString('utf8'));
+        done(null, Object.fromEntries(params.entries()));
+      } catch (error) {
+        done(error as Error, undefined);
+      }
+    },
+  );
+
   void app.register(metricsPlugin);
   void app.register(authPlugin);
   void app.register(tenantPlugin);

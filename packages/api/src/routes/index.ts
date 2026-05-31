@@ -12,6 +12,7 @@ import payerRoutes from './payers.js';
 import webhookRoutes from './webhooks.js';
 import caseRoutes from './cases.js';
 import apiKeyRoutes from './api-keys.js';
+import oauthRoutes from './oauth.js';
 import preauthorizationRoutes from './preauthorizations.js';
 
 const apiRoutes: FastifyPluginAsync = async (fastify) => {
@@ -32,6 +33,7 @@ const apiRoutes: FastifyPluginAsync = async (fastify) => {
   await fastify.register(webhookRoutes);
   await fastify.register(caseRoutes);
   await fastify.register(apiKeyRoutes);
+  await fastify.register(oauthRoutes);
   await fastify.register(preauthorizationRoutes);
 };
 
