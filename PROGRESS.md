@@ -13,9 +13,9 @@ Status legend: ✅ done · 🟡 in progress · ⛔ blocked · ⬜ not started
 | 3 | Scoring endpoint (`POST /v1/claims/score`, FHIR input, reason codes, problem+json) | ✅ done | #4 → landed via #8 |
 | 4 | Async + batch + signed webhooks | ✅ webhooks done | #5 → landed via #8 — async `/batch` = follow-up |
 | 5 | Case management API | ✅ done | #6 → landed via #8 |
-| 6a | Tenant-scoped API keys (machine auth) | ⛔ STOP GATE — awaiting your merge | [#7](https://github.com/JGitaka123/Claimflow_api/pull/7) (open, CI-green) |
-| 6b | OAuth2 client-credentials | ⛔ STOP GATE — awaiting your merge | _this PR_ (stacked on #7) |
-| 6c | Postgres Row-Level Security | ⛔ STOP GATE — blocked on 6a/6b merge | — |
+| 6a | Tenant-scoped API keys (machine auth) | ✅ done | #7 (merged) |
+| 6b | OAuth2 client-credentials | ✅ done | #9 (merged) |
+| 6c | Postgres Row-Level Security | 🟡 design in review (STOP GATE) — `docs/rls-design.md`; no code yet | _this branch_ |
 | 6d | Per-tenant + per-key rate limiting & metering | ⛔ STOP GATE — not started | — |
 | 7 | Observability + ops + usage metering | ⬜ not started | — |
 | 8 | Developer experience: interactive docs, sandbox, SDKs | ⬜ not started — **OpenAPI 3.1 spec + CI sync check authored first** | — |
