@@ -70,6 +70,95 @@ error rather than silently audit a claim against another payer's rules.
    in-Kenya residency, encryption at rest, retention/deletion, consent metadata, breach
    readiness, customer Data Processing Agreements.
 
+## Slice 2 — detailed plan (thread payer through claims & audit)
+
+> Status: **planned, not yet implemented.** This section is the agreed design for the next
+> slice; no code from it has landed.
+
+Goal: every claim carries an explicit payer, the audit pipeline evaluates each claim against
+*its own payer's* rulepack, and each audit session immutably records which payer + rulepack
+version produced the decision — preserving determinism and a reproducible audit trail.
+
+### 1. Payer on claim creation
+
+- **Schema (`@claimflow/shared`)**: `CreateClaimSchema` gains `payerId: z.string().uuid().optional()`.
+  When omitted, the service resolves and stores the default **SHA** payer id explicitly
+  (we persist the real id rather than relying on `NULL`-⇒-SHA, which sets up the
+  `payer_id NOT NULL` follow-up). The `Claim` type gains `payerId: string` plus denormalized
+  `payerSlug` / `payerName` for display in responses.
+- **`claim-service` create**: resolve the payer, persist `payer_id`, and **fail closed** on a
+  payer that is unknown or not `ACTIVE` (e.g. `COMING_SOON`) → `400 VALIDATION_ERROR`. This
+  prevents creating claims that cannot be audited.
+- **Reads**: `GET /v1/claims/:id` and the list endpoint include `payerId` / `payerSlug` /
+  `payerName` (join against the global `payers` catalog).
+
+### 2. Per-payer RuleEngine registry
+
+- New module `packages/api/src/workflows/rule-engine-registry.ts`:
+  `createRuleEngineRegistry(config, payerLookup)` returning
+  `getEngineForPayer(payer): Promise<RuleEngine>`.
+- Maintains a `Map<payerSlug, RuleEngine>`; the engine for a slug is created **once, lazily**,
+  via `createRuleEngine(config.RULEPACK_DIR, payer.rulepackVersion, slugArg)` and cached. Each
+  engine internally caches its loaded rulepack (existing behavior), so a rulepack is read from
+  disk at most once per payer per process.
+- **SHA special-case**: for slug `sha`, the engine is created with `payerSlug` **undefined** so
+  it resolves the legacy flat `rulepacks/<version>/` layout — no files move. Every other payer
+  passes its slug and resolves `rulepacks/<slug>/<version>/`.
+- **Fail closed**: if a payer has no `rulepackVersion` (e.g. `COMING_SOON`) the registry throws a
+  typed domain error rather than returning a fallback engine — no claim is ever audited against
+  another payer's rules.
+- **Determinism**: the engine bound to a slug is stable for the process; the rulepack version is
+  read from the catalog at audit time and **snapshotted onto the audit session** (below), so a
+  later change to a payer's active version never alters historical results.
+
+### 3. Audit pipeline & batch wiring
+
+- `AuditPipelineService` replaces its single `this.ruleEngine` with the registry. In
+  `executeAuditPipeline`, after loading the claim it resolves the claim's payer, calls
+  `registry.getEngineForPayer(payer)`, then `engine.evaluate(input, locale)` as today.
+- **Batch audit**: payer lives on each claim, so batch needs no single batch-wide payer — the
+  handler audits each claim against the claim's own `payer_id` (supports mixed-payer batches).
+  `BatchAuditSchema` gains an optional `filter.payerId` to *scope* which claims are selected.
+- The persisted `audit_sessions` row records the payer identity and the exact rulepack version +
+  checksum used (it already stores `rulepack_version` / `rulepack_checksum`).
+
+### 4. Schema / migration changes
+
+- `017_audit_session_payer.sql`:
+  `ALTER TABLE audit_sessions ADD COLUMN payer_id UUID REFERENCES payers(id)`,
+  `ADD COLUMN payer_slug TEXT` (immutable snapshot of the slug at audit time). Optional index on
+  `(payer_id)`. Backfill existing sessions to the SHA payer.
+- `018_backfill_claim_payer.sql` (the slice-1 follow-up): `UPDATE claims SET payer_id = <sha id>
+  WHERE payer_id IS NULL`, then a subsequent migration tightens `claims.payer_id` to `NOT NULL`
+  with a default of the SHA payer once backfill is verified.
+
+### 5. API contract changes
+
+- `POST /v1/claims`: accepts optional `payerId`; response claim includes `payerId` / `payerSlug` /
+  `payerName`. Unknown or non-`ACTIVE` payer → `400 VALIDATION_ERROR`.
+- `GET /v1/claims` and `GET /v1/claims/:id`: include payer fields.
+- `POST /v1/claims/batch-audit`: optional `filter.payerId`; audits each claim against its own payer.
+- Audit reads (`GET /v1/audits/:id`, `GET /v1/claims/:id/audit/latest`): include `payerId` /
+  `payerSlug` alongside the existing `rulepackVersion` / `rulepackChecksum`.
+
+### 6. Test plan
+
+- **Unit — registry**: same engine instance returned per slug (caching); SHA resolves the flat
+  layout (constructed with `payerSlug` undefined); distinct engines per payer; a payer with no
+  `rulepackVersion` throws (fail closed).
+- **Unit — claim-service**: stores `payer_id`; defaults to SHA when omitted; rejects a
+  `COMING_SOON` / unknown payer.
+- **Integration (Postgres)**:
+  - Create claim with an explicit `ACTIVE` payer → `payer_id` persisted; create without payer →
+    SHA default persisted.
+  - Create claim with a `COMING_SOON` payer → `400`.
+  - Audit a claim → `audit_sessions` row has `payer_id` / `payer_slug` and the
+    `rulepack_version` / `rulepack_checksum` matching that payer.
+  - Mixed-payer batch (using a fixture rulepack tree with `sha/` flat + a namespaced test payer
+    under `RULEPACK_DIR`) → each session records the correct per-claim payer.
+  - **Determinism**: re-auditing the same claim against the same payer/version yields identical
+    `rule_results` and decision.
+
 ## Open content dependency (not an engineering task)
 
 SHA rules were derived from official tariff PDFs in `reference-data/`. The private insurers
