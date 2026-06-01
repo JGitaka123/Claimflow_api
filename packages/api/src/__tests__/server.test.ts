@@ -88,6 +88,29 @@ describe('API server foundation', () => {
     expect(response.body).toContain('route="/health"');
   });
 
+  it('GET /metrics requires the bearer token when METRICS_AUTH_TOKEN is set', async () => {
+    const app = buildServer({ config: createTestConfig({ METRICS_AUTH_TOKEN: 'secret-metrics-token' }) });
+    apps.push(app);
+
+    const unauthorized = await app.inject({ method: 'GET', url: '/metrics' });
+    expect(unauthorized.statusCode).toBe(401);
+
+    const wrong = await app.inject({
+      method: 'GET',
+      url: '/metrics',
+      headers: { authorization: 'Bearer wrong-token-value-padded' },
+    });
+    expect(wrong.statusCode).toBe(401);
+
+    const authorized = await app.inject({
+      method: 'GET',
+      url: '/metrics',
+      headers: { authorization: 'Bearer secret-metrics-token' },
+    });
+    expect(authorized.statusCode).toBe(200);
+    expect(authorized.body).toContain('claimflow_db_up');
+  });
+
   it('rate limiting returns 429 after configured limit is exceeded', async () => {
     const app = buildServer({
       config: createTestConfig({
