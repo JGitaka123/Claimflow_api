@@ -7,7 +7,7 @@ import {
 } from '@claimflow/shared';
 import { z } from 'zod';
 import type { FastifyPluginAsync } from 'fastify';
-import { getPool } from '../db/client.js';
+import { getPrivilegedPool } from '../db/privileged.js';
 import { requirePermission } from '../plugins/auth.js';
 import { createAuthService } from '../services/auth-service.js';
 import { createOAuthService } from '../services/oauth-service.js';
@@ -15,7 +15,7 @@ import { createOAuthService } from '../services/oauth-service.js';
 const ClientIdParamsSchema = z.object({ id: z.string().uuid() });
 
 const oauthRoutes: FastifyPluginAsync = async (fastify) => {
-  const pool = getPool(fastify.config);
+  const pool = getPrivilegedPool(fastify.config);
   const authService = createAuthService(pool, fastify.log, fastify.config);
   const oauthService = createOAuthService(pool, authService);
 

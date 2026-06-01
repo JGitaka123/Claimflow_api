@@ -12,7 +12,8 @@ import {
   type CreateClaimInput,
 } from '@claimflow/shared';
 import type { FastifyBaseLogger } from 'fastify';
-import type { Pool, PoolClient, QueryResultRow } from 'pg';
+import type { PoolClient, QueryResultRow } from 'pg';
+import type { TenantDb, Queryable } from '../db/client.js';
 
 const MUTABLE_STATUSES = new Set<ClaimStatus>([ClaimStatus.DRAFT, ClaimStatus.CORRECTIONS_IN_PROGRESS]);
 
@@ -276,20 +277,10 @@ function encodeCursor(cursor: CursorPayload): string {
   return Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url');
 }
 
-async function withTransaction<T>(pool: Pool, callback: (client: PoolClient) => Promise<T>): Promise<T> {
-  const client = await pool.connect();
-
-  try {
-    await client.query('BEGIN');
-    const result = await callback(client);
-    await client.query('COMMIT');
-    return result;
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
+async function withTransaction<T>(db: TenantDb, callback: (client: PoolClient) => Promise<T>): Promise<T> {
+  // Delegates to the tenant-scoped handle: opens a transaction with
+  // app.current_tenant bound (RLS), runs the work, commits.
+  return db.transaction(callback);
 }
 
 interface PayerLookupRow extends QueryResultRow {
@@ -344,7 +335,7 @@ async function resolveClaimPayer(
   return { id: row.id, slug: row.slug, name: row.name };
 }
 
-async function attachPayerInfo(client: PoolClient | Pool, claim: Claim): Promise<void> {
+async function attachPayerInfo(client: Queryable, claim: Claim): Promise<void> {
   if (!claim.payerId) {
     return;
   }
@@ -362,7 +353,7 @@ async function attachPayerInfo(client: PoolClient | Pool, claim: Claim): Promise
   }
 }
 
-async function fetchClaimLines(client: PoolClient | Pool, claimId: string): Promise<ClaimLine[]> {
+async function fetchClaimLines(client: Queryable, claimId: string): Promise<ClaimLine[]> {
   const linesResult = await client.query<ClaimLineRow>(
     `SELECT *
        FROM claim_lines
@@ -376,7 +367,7 @@ async function fetchClaimLines(client: PoolClient | Pool, claimId: string): Prom
 
 export class ClaimService {
   constructor(
-    private readonly pool: Pool,
+    private readonly pool: TenantDb,
     private readonly logger: FastifyBaseLogger,
   ) {}
 
@@ -502,6 +493,7 @@ export class ClaimService {
         const inserted = await client.query<ClaimLineRow>(
           `INSERT INTO claim_lines (
               claim_id,
+              tenant_id,
               line_number,
               sha_service_code,
               description,
@@ -516,7 +508,7 @@ export class ClaimService {
               status
             ) VALUES (
               $1::uuid,
-              $2,
+              $2::uuid,
               $3,
               $4,
               $5,
@@ -527,11 +519,13 @@ export class ClaimService {
               $10,
               $11,
               $12,
+              $13,
               'ACTIVE'
             )
             RETURNING *`,
           [
             claimRow.id,
+            tenantId,
             index + 1,
             line.shaServiceCode,
             line.description,
@@ -596,11 +590,12 @@ export class ClaimService {
         await client.query(
           `INSERT INTO idempotency_keys (
               idempotency_key,
+              tenant_id,
               response_status,
               response_body
-            ) VALUES ($1, $2, $3::jsonb)
-            ON CONFLICT (idempotency_key) DO NOTHING`,
-          [idempotencyKey, 201, JSON.stringify(payload)],
+            ) VALUES ($1, $2::uuid, $3, $4::jsonb)
+            ON CONFLICT (tenant_id, idempotency_key) DO NOTHING`,
+          [idempotencyKey, tenantId, 201, JSON.stringify(payload)],
         );
       }
 
@@ -941,6 +936,7 @@ export class ClaimService {
           await client.query(
             `INSERT INTO claim_lines (
                 claim_id,
+                tenant_id,
                 line_number,
                 sha_service_code,
                 description,
@@ -955,7 +951,7 @@ export class ClaimService {
                 status
               ) VALUES (
                 $1::uuid,
-                $2,
+                $2::uuid,
                 $3,
                 $4,
                 $5,
@@ -966,10 +962,12 @@ export class ClaimService {
                 $10,
                 $11,
                 $12,
+                $13,
                 'ACTIVE'
               )`,
             [
               claimId,
+              updatedClaimRow.tenant_id,
               index + 1,
               line.shaServiceCode,
               line.description,
@@ -1023,7 +1021,7 @@ export class ClaimService {
   }
 }
 
-export function createClaimService(pool: Pool, logger: FastifyBaseLogger): ClaimService {
+export function createClaimService(pool: TenantDb, logger: FastifyBaseLogger): ClaimService {
   return new ClaimService(pool, logger);
 }
 

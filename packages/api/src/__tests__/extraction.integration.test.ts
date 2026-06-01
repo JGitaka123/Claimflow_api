@@ -7,7 +7,7 @@ import { ErrorCode } from '@claimflow/shared';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import { loadConfig, type Config } from '../config.js';
-import { closePool, getPool } from '../db/client.js';
+import { closePool, getAdminPool } from '../db/client.js';
 import { buildServer } from '../server.js';
 
 const integrationDatabaseUrl = process.env.CLAIMFLOW_TEST_DATABASE_URL ?? process.env.DATABASE_URL;
@@ -194,6 +194,7 @@ async function seedExtractionArtifacts(
   params: {
     claimId: string;
     userId: string;
+    tenantId: string;
     fieldValue?: string;
   },
 ): Promise<{ documentId: string; fieldId: string; secondaryFieldId: string }> {
@@ -205,6 +206,7 @@ async function seedExtractionArtifacts(
     `INSERT INTO documents (
         id,
         claim_id,
+        tenant_id,
         doc_type,
         processing_route,
         mime_type,
@@ -218,6 +220,7 @@ async function seedExtractionArtifacts(
       ) VALUES (
         $1::uuid,
         $2::uuid,
+        $4::uuid,
         'SHA_CLAIM_FORM_OP'::doc_type,
         'FULL_OCR_EXTRACT'::doc_processing_route,
         'application/pdf',
@@ -229,7 +232,7 @@ async function seedExtractionArtifacts(
         'COMPLETED'::doc_processing_status,
         $3::uuid
       )`,
-    [documentId, params.claimId, params.userId],
+    [documentId, params.claimId, params.userId, params.tenantId],
   );
 
   await pool.query(
@@ -276,6 +279,7 @@ async function seedExtractionArtifacts(
     `INSERT INTO extracted_fields (
         id,
         claim_id,
+        tenant_id,
         document_id,
         page_number,
         field_key,
@@ -289,6 +293,7 @@ async function seedExtractionArtifacts(
       ) VALUES (
         $1::uuid,
         $2::uuid,
+        $7::uuid,
         $3::uuid,
         1,
         'patient_sha_id',
@@ -302,6 +307,7 @@ async function seedExtractionArtifacts(
       ), (
         $5::uuid,
         $2::uuid,
+        $7::uuid,
         $3::uuid,
         1,
         'diagnosis',
@@ -320,6 +326,7 @@ async function seedExtractionArtifacts(
       JSON.stringify({ x: 12, y: 34, w: 120, h: 40 }),
       secondaryFieldId,
       params.fieldValue ?? 'malaria',
+      params.tenantId,
     ],
   );
 
@@ -350,7 +357,7 @@ integrationDescribe('Extraction + correction integration (real Postgres)', () =>
       },
     });
 
-    pool = getPool(config);
+    pool = getAdminPool(config);
     await pool.query('SELECT 1');
     await runMigrations(pool);
 
@@ -380,6 +387,7 @@ integrationDescribe('Extraction + correction integration (real Postgres)', () =>
     const artifacts = await seedExtractionArtifacts(pool!, {
       claimId,
       userId: seed.userId,
+      tenantId: seed.tenantId,
     });
 
     const response = await app!.inject({
@@ -420,6 +428,7 @@ integrationDescribe('Extraction + correction integration (real Postgres)', () =>
       claimId,
       userId: seed.userId,
       fieldValue: 'malaria',
+      tenantId: seed.tenantId,
     });
 
     const response = await app!.inject({
@@ -483,6 +492,7 @@ integrationDescribe('Extraction + correction integration (real Postgres)', () =>
     const artifacts = await seedExtractionArtifacts(pool!, {
       claimId,
       userId: owner.userId,
+      tenantId: owner.tenantId,
     });
 
     const response = await app!.inject({

@@ -8,7 +8,8 @@ import {
   type WebhookEndpoint,
 } from '@claimflow/shared';
 import type { FastifyBaseLogger } from 'fastify';
-import type { Pool, PoolClient, QueryResultRow } from 'pg';
+import type { Pool, QueryResultRow } from 'pg';
+import type { Queryable, TenantDb } from '../db/client.js';
 import { backoffSeconds, buildWebhookSignatureHeader } from '../integrations/webhook-signing.js';
 
 const DEFAULT_MAX_ATTEMPTS = 6;
@@ -161,15 +162,21 @@ export interface WebhookService {
   deleteEndpoint: (tenantId: string, endpointId: string) => Promise<void>;
   listDeliveries: (tenantId: string, endpointId: string, limit?: number) => Promise<WebhookDelivery[]>;
   enqueueEvent: (
-    executor: Pool | PoolClient,
+    executor: Queryable,
     tenantId: string,
     eventType: string,
     payload: Record<string, unknown>,
   ) => Promise<number>;
-  dispatchDueDeliveries: (options?: { limit?: number; sender?: WebhookSender }) => Promise<DispatchResult>;
+  // Cross-tenant background relay: runs on the privileged pool passed in by the
+  // worker (RLS would otherwise hide other tenants' due deliveries). Not on the
+  // tenant request path.
+  dispatchDueDeliveries: (
+    privilegedPool: Pool,
+    options?: { limit?: number; sender?: WebhookSender },
+  ) => Promise<DispatchResult>;
 }
 
-export function createWebhookService(pool: Pool, logger: FastifyBaseLogger): WebhookService {
+export function createWebhookService(pool: TenantDb, logger: FastifyBaseLogger): WebhookService {
   return {
     async createEndpoint(tenantId, input): Promise<WebhookEndpoint> {
       const secret = `whsec_${randomBytes(24).toString('hex')}`;
@@ -248,11 +255,11 @@ export function createWebhookService(pool: Pool, logger: FastifyBaseLogger): Web
       return created;
     },
 
-    async dispatchDueDeliveries(options = {}): Promise<DispatchResult> {
+    async dispatchDueDeliveries(privilegedPool, options = {}): Promise<DispatchResult> {
       const sender = options.sender ?? fetchWebhookSender;
       const limit = Math.min(Math.max(options.limit ?? 25, 1), 200);
 
-      const due = await pool.query<DueDeliveryRow>(
+      const due = await privilegedPool.query<DueDeliveryRow>(
         `SELECT d.*, e.url, e.secret
            FROM webhook_deliveries d
            JOIN webhook_endpoints e ON e.id = d.endpoint_id
@@ -285,7 +292,7 @@ export function createWebhookService(pool: Pool, logger: FastifyBaseLogger): Web
           });
 
           if (sendResult.status >= 200 && sendResult.status < 300) {
-            await pool.query(
+            await privilegedPool.query(
               `UPDATE webhook_deliveries
                   SET status = 'DELIVERED'::webhook_delivery_status, attempts = $2,
                       response_status = $3, delivered_at = now(), error = NULL, next_attempt_at = NULL
@@ -296,10 +303,10 @@ export function createWebhookService(pool: Pool, logger: FastifyBaseLogger): Web
             continue;
           }
 
-          await markFailure(pool, row, attempt, `HTTP ${sendResult.status}`, sendResult.status, result);
+          await markFailure(privilegedPool, row, attempt, `HTTP ${sendResult.status}`, sendResult.status, result);
         } catch (error) {
           const message = error instanceof Error ? error.message : 'delivery_failed';
-          await markFailure(pool, row, attempt, message.slice(0, 500), null, result);
+          await markFailure(privilegedPool, row, attempt, message.slice(0, 500), null, result);
           logger.warn({ deliveryId: row.id, err: error }, 'webhook delivery attempt failed');
         }
       }

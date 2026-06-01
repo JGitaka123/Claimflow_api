@@ -9,7 +9,7 @@ import { ErrorCode } from '@claimflow/shared';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import { loadConfig, type Config } from '../config.js';
-import { closePool, getPool } from '../db/client.js';
+import { closePool, getAdminPool } from '../db/client.js';
 import { buildServer } from '../server.js';
 import { encryptTotpSecret } from '../services/auth-service.js';
 
@@ -277,7 +277,7 @@ integrationDescribe('Auth foundation integration', () => {
       },
     });
 
-    pool = getPool(config);
+    pool = getAdminPool(config);
     await pool.query('SELECT 1');
     await runMigrations(pool);
 

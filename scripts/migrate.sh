@@ -51,3 +51,14 @@ echo ""
 echo "=== Migration complete ==="
 total=$(psql "${DATABASE_URL}" -tAc "SELECT COUNT(*) FROM schema_migrations;")
 echo "Total migrations applied: ${total}"
+
+# RLS app role (item 6c): migration 023 creates claimflow_app as NOLOGIN with no
+# password. Grant it LOGIN + a password so the API can connect via APP_DATABASE_URL.
+# Set APP_DB_PASSWORD to enable; skipped otherwise (the app then falls back to the
+# owner role with a startup warning — RLS provides no isolation in that mode).
+if [ -n "${APP_DB_PASSWORD:-}" ]; then
+  echo ""
+  echo "Provisioning claimflow_app login..."
+  psql "${DATABASE_URL}" -c "ALTER ROLE claimflow_app LOGIN PASSWORD '${APP_DB_PASSWORD}';" >/dev/null
+  echo "  ✓ claimflow_app can log in (connect via APP_DATABASE_URL)"
+fi

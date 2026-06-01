@@ -1,6 +1,7 @@
 import fp from 'fastify-plugin';
 import { DomainError, ErrorCode } from '@claimflow/shared';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
+import { enterTenantContext } from '../db/client.js';
 
 const PUBLIC_PATHS = new Set([
   '/health',
@@ -56,6 +57,11 @@ const tenantPlugin: FastifyPluginAsync = async (fastify) => {
       tenantId: request.user.tenantId,
       facilityId: request.user.facilityId,
     };
+
+    // Bind the tenant to this request's async context so every tenant-scoped
+    // query (via getTenantDb) runs under RLS with app.current_tenant set. The
+    // route handler runs in a continuation of this hook's context.
+    enterTenantContext(request.user.tenantId);
   });
 };
 

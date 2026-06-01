@@ -9,7 +9,8 @@ import {
   type PreauthorizationServiceCode,
 } from '@claimflow/shared';
 import type { FastifyBaseLogger } from 'fastify';
-import type { Pool, PoolClient, QueryResultRow } from 'pg';
+import type { PoolClient, QueryResultRow } from 'pg';
+import type { TenantDb } from '../db/client.js';
 
 interface PreauthorizationRow extends QueryResultRow {
   id: string;
@@ -103,20 +104,8 @@ function normalizeCode(code: string): string {
   return code.trim().toUpperCase();
 }
 
-async function withTransaction<T>(pool: Pool, callback: (client: PoolClient) => Promise<T>): Promise<T> {
-  const client = await pool.connect();
-
-  try {
-    await client.query('BEGIN');
-    const result = await callback(client);
-    await client.query('COMMIT');
-    return result;
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
+async function withTransaction<T>(db: TenantDb, callback: (client: PoolClient) => Promise<T>): Promise<T> {
+  return db.transaction(callback);
 }
 
 function mapPreauthorization(
@@ -144,7 +133,7 @@ function mapPreauthorization(
 
 export class PreauthorizationService {
   constructor(
-    private readonly pool: Pool,
+    private readonly pool: TenantDb,
     private readonly logger: FastifyBaseLogger,
   ) {}
 
@@ -542,7 +531,7 @@ export class PreauthorizationService {
 }
 
 export function createPreauthorizationService(
-  pool: Pool,
+  pool: TenantDb,
   logger: FastifyBaseLogger,
 ): PreauthorizationService {
   return new PreauthorizationService(pool, logger);

@@ -21,6 +21,10 @@ const baseConfigSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(8080),
 
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+  // The non-superuser, non-BYPASSRLS application role used for all tenant-scoped
+  // access (item 6c). Falls back to DATABASE_URL when unset (dev/test before the
+  // role is provisioned); loadConfig warns when this fallback is used in production.
+  APP_DATABASE_URL: nullableString,
   DB_POOL_MIN: z.coerce.number().int().min(0).default(5),
   DB_POOL_MAX: z.coerce.number().int().min(1).default(20),
 
@@ -89,6 +93,14 @@ export function loadConfig(options: LoadConfigOptions = {}): Config {
   const parsed = configSchema.safeParse(env);
 
   if (parsed.success) {
+    if (parsed.data.NODE_ENV === 'production' && !parsed.data.APP_DATABASE_URL) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[config] APP_DATABASE_URL is not set in production: tenant-scoped queries will run on the ' +
+          'privileged DATABASE_URL role, so Postgres RLS provides no isolation backstop. Provision the ' +
+          'non-superuser claimflow_app role and set APP_DATABASE_URL.',
+      );
+    }
     return parsed.data;
   }
 

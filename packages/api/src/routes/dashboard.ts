@@ -3,7 +3,7 @@ import { DomainError, ErrorCode } from '@claimflow/shared';
 import { z } from 'zod';
 import type { FastifyPluginAsync } from 'fastify';
 import type { QueryResultRow } from 'pg';
-import { getPool } from '../db/client.js';
+import { getTenantDb } from '../db/client.js';
 import { requirePermission } from '../plugins/auth.js';
 import { isMlServiceExposedHost } from '../integrations/ml-network.js';
 
@@ -150,7 +150,7 @@ async function checkMlHealth(baseUrl: string, timeoutMs: number, nodeEnv: string
   }
 }
 
-async function resolveQueueDepth(pool: ReturnType<typeof getPool>): Promise<number> {
+async function resolveQueueDepth(pool: ReturnType<typeof getTenantDb>): Promise<number> {
 
   try {
     const tableResult = await pool.query<QueueTableRow>(
@@ -176,7 +176,7 @@ async function resolveQueueDepth(pool: ReturnType<typeof getPool>): Promise<numb
 }
 
 const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
-  const pool = getPool(fastify.config);
+  const pool = getTenantDb(fastify.config);
 
 
   fastify.get('/v1/dashboard/overview', { preHandler: requirePermission('dashboard:view') }, async (request, reply) => {

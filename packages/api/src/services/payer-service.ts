@@ -1,4 +1,5 @@
-import type { Pool, QueryResultRow } from 'pg';
+import type { QueryResultRow } from 'pg';
+import type { TenantDb } from '../db/client.js';
 import { PayerStatus, type Payer } from '@claimflow/shared';
 
 /** Raw `payers` row as returned by Postgres (snake_case columns). */
@@ -61,7 +62,7 @@ export interface PayerService {
   getPayerBySlug: (slug: string) => Promise<Payer | null>;
 }
 
-export function createPayerService(pool: Pool): PayerService {
+export function createPayerService(pool: TenantDb): PayerService {
   return {
     async listPayers(options: ListPayersOptions = {}): Promise<Payer[]> {
       const conditions: string[] = [];

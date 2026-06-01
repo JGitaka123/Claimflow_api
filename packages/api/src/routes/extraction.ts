@@ -2,7 +2,7 @@ import fp from 'fastify-plugin';
 import { CorrectFieldSchema, DomainError, ErrorCode } from '@claimflow/shared';
 import { z } from 'zod';
 import type { FastifyPluginAsync } from 'fastify';
-import { getPool } from '../db/client.js';
+import { getTenantDb } from '../db/client.js';
 import { requirePermission } from '../plugins/auth.js';
 import { createExtractionService } from '../services/extraction-service.js';
 
@@ -16,7 +16,7 @@ const FieldParamsSchema = z.object({
 });
 
 const extractionRoutes: FastifyPluginAsync = async (fastify) => {
-  const pool = getPool(fastify.config);
+  const pool = getTenantDb(fastify.config);
   const extractionService = createExtractionService(pool);
 
   fastify.get('/v1/documents/:docId/pages/:pageNumber/extraction', async (request, reply) => {

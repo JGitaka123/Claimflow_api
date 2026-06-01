@@ -2,14 +2,14 @@ import fp from 'fastify-plugin';
 import { CreateApiKeySchema, DomainError, ErrorCode } from '@claimflow/shared';
 import { z } from 'zod';
 import type { FastifyPluginAsync } from 'fastify';
-import { getPool } from '../db/client.js';
+import { getPrivilegedPool } from '../db/privileged.js';
 import { requirePermission } from '../plugins/auth.js';
 import { createApiKeyService } from '../services/api-key-service.js';
 
 const ApiKeyIdParamsSchema = z.object({ id: z.string().uuid() });
 
 const apiKeyRoutes: FastifyPluginAsync = async (fastify) => {
-  const pool = getPool(fastify.config);
+  const pool = getPrivilegedPool(fastify.config);
   const apiKeyService = createApiKeyService(pool);
 
   fastify.post('/v1/api-keys', { preHandler: requirePermission('system:settings') }, async (request, reply) => {

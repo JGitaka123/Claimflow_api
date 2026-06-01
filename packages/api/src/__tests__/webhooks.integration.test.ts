@@ -7,7 +7,7 @@ import { WebhookEventType } from '@claimflow/shared';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import { loadConfig, type Config } from '../config.js';
-import { getPool, closePool } from '../db/client.js';
+import { getAdminPool, getTenantDb, runWithTenant, closePool } from '../db/client.js';
 import { buildServer } from '../server.js';
 import { createWebhookService, type WebhookSender } from '../services/webhook-service.js';
 import { verifyWebhookSignature } from '../integrations/webhook-signing.js';
@@ -109,7 +109,7 @@ integrationDescribe('Webhooks integration (real Postgres)', () => {
         RULEPACK_DIR: rulepacksDir,
       },
     });
-    pool = getPool(config);
+    pool = getAdminPool(config);
     await runMigrations(pool);
     app = buildServer({ config });
     await app.ready();
@@ -153,17 +153,20 @@ integrationDescribe('Webhooks integration (real Postgres)', () => {
 
   it('delivers a queued event with a verifiable signature', async () => {
     const s = await seed(pool!);
-    const service = createWebhookService(pool!, app!.log);
+    const service = createWebhookService(getTenantDb(config), app!.log);
 
-    const endpoint = await service.createEndpoint(s.tenantId, {
-      url: 'https://example.test/hook',
-      events: [WebhookEventType.CLAIM_FLAGGED],
-    });
-    const secret = endpoint.secret as string;
-
-    const enqueued = await service.enqueueEvent(pool!, s.tenantId, WebhookEventType.CLAIM_FLAGGED, {
-      claimId: 'claim-123',
-      decision: 'FAILED',
+    const { endpoint, secret, enqueued } = await runWithTenant(s.tenantId, async () => {
+      const ep = await service.createEndpoint(s.tenantId, {
+        url: 'https://example.test/hook',
+        events: [WebhookEventType.CLAIM_FLAGGED],
+      });
+      const count = await getTenantDb(config).transaction((client) =>
+        service.enqueueEvent(client, s.tenantId, WebhookEventType.CLAIM_FLAGGED, {
+          claimId: 'claim-123',
+          decision: 'FAILED',
+        }),
+      );
+      return { endpoint: ep, secret: ep.secret as string, enqueued: count };
     });
     expect(enqueued).toBe(1);
 
@@ -173,7 +176,8 @@ integrationDescribe('Webhooks integration (real Postgres)', () => {
       return { status: 200 };
     };
 
-    const result = await service.dispatchDueDeliveries({ sender });
+    // Dispatch is cross-tenant background work: it runs on the privileged pool.
+    const result = await service.dispatchDueDeliveries(pool!, { sender });
     expect(result.delivered).toBe(1);
     expect(captured).toHaveLength(1);
 
@@ -181,26 +185,30 @@ integrationDescribe('Webhooks integration (real Postgres)', () => {
     const body = captured[0]?.body ?? '';
     expect(verifyWebhookSignature(secret, signature, body)).toBe(true);
 
-    const deliveries = await service.listDeliveries(s.tenantId, endpoint.id);
+    const deliveries = await runWithTenant(s.tenantId, () => service.listDeliveries(s.tenantId, endpoint.id));
     expect(deliveries[0]?.status).toBe('DELIVERED');
     expect(deliveries[0]?.responseStatus).toBe(200);
   });
 
   it('schedules a backoff retry when delivery fails', async () => {
     const s = await seed(pool!);
-    const service = createWebhookService(pool!, app!.log);
-    const endpoint = await service.createEndpoint(s.tenantId, {
-      url: 'https://example.test/hook',
-      events: [WebhookEventType.CLAIM_FLAGGED],
+    const service = createWebhookService(getTenantDb(config), app!.log);
+    const endpoint = await runWithTenant(s.tenantId, async () => {
+      const ep = await service.createEndpoint(s.tenantId, {
+        url: 'https://example.test/hook',
+        events: [WebhookEventType.CLAIM_FLAGGED],
+      });
+      await getTenantDb(config).transaction((client) =>
+        service.enqueueEvent(client, s.tenantId, WebhookEventType.CLAIM_FLAGGED, { claimId: 'c1' }),
+      );
+      return ep;
     });
 
-    await service.enqueueEvent(pool!, s.tenantId, WebhookEventType.CLAIM_FLAGGED, { claimId: 'c1' });
-
     const failing: WebhookSender = async () => ({ status: 500 });
-    const result = await service.dispatchDueDeliveries({ sender: failing });
+    const result = await service.dispatchDueDeliveries(pool!, { sender: failing });
     expect(result.failed).toBe(1);
 
-    const deliveries = await service.listDeliveries(s.tenantId, endpoint.id);
+    const deliveries = await runWithTenant(s.tenantId, () => service.listDeliveries(s.tenantId, endpoint.id));
     expect(deliveries[0]?.status).toBe('FAILED');
     expect(deliveries[0]?.attempts).toBe(1);
     expect(deliveries[0]?.nextAttemptAt).not.toBeNull();
@@ -208,11 +216,13 @@ integrationDescribe('Webhooks integration (real Postgres)', () => {
 
   it('emits claim.flagged when a scored claim is not PASSED', async () => {
     const s = await seed(pool!);
-    const service = createWebhookService(pool!, app!.log);
-    await service.createEndpoint(s.tenantId, {
-      url: 'https://example.test/hook',
-      events: [WebhookEventType.CLAIM_FLAGGED],
-    });
+    const service = createWebhookService(getTenantDb(config), app!.log);
+    await runWithTenant(s.tenantId, () =>
+      service.createEndpoint(s.tenantId, {
+        url: 'https://example.test/hook',
+        events: [WebhookEventType.CLAIM_FLAGGED],
+      }),
+    );
 
     const score = await app!.inject({
       method: 'POST',

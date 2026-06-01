@@ -22,7 +22,8 @@ import {
   type TariffRecord,
 } from '@claimflow/rule-engine';
 import type { FastifyBaseLogger } from 'fastify';
-import type { Pool, QueryResultRow } from 'pg';
+import type { QueryResultRow } from 'pg';
+import type { TenantDb } from '../db/client.js';
 import type { Config } from '../config.js';
 import { CircuitBreaker } from '../integrations/circuit-breaker.js';
 import { MlClient, type MlPageResult, type MlProcessDocumentResponse } from '../integrations/ml-client.js';
@@ -309,7 +310,7 @@ export class AuditPipelineService {
   private readonly webhookService: WebhookService;
 
   constructor(
-    private readonly pool: Pool,
+    private readonly pool: TenantDb,
     private readonly logger: FastifyBaseLogger,
     private readonly config: Config,
     dependencies: AuditPipelineDependencies = {},
@@ -431,7 +432,7 @@ export class AuditPipelineService {
       }
     }
 
-    await this.persistExtractedFields(params.claimId, extractedFields);
+    await this.persistExtractedFields(params.claimId, params.tenantId, extractedFields);
 
     const extractedFieldMap = this.toExtractedFieldMap(extractedFields);
     const registryResults = await this.fetchRegistryDataStub(claim.row);
@@ -501,6 +502,7 @@ export class AuditPipelineService {
     const sessionInsert = await this.pool.query<{ id: string }>(
       `INSERT INTO audit_sessions (
           claim_id,
+          tenant_id,
           user_id,
           rulepack_version,
           rulepack_checksum,
@@ -522,10 +524,10 @@ export class AuditPipelineService {
         ) VALUES (
           $1::uuid,
           $2::uuid,
-          $3,
+          $3::uuid,
           $4,
-          $5::audit_decision,
-          $6,
+          $5,
+          $6::audit_decision,
           $7,
           $8,
           $9,
@@ -535,14 +537,16 @@ export class AuditPipelineService {
           $13,
           $14,
           $15,
-          $16::timestamptz,
+          $16,
+          $17::timestamptz,
           now(),
-          $17::uuid,
-          $18
+          $18::uuid,
+          $19
         )
         RETURNING id`,
       [
         params.claimId,
+        params.tenantId,
         params.userId,
         rulepackVersion,
         rulepackChecksum,
@@ -573,6 +577,7 @@ export class AuditPipelineService {
       await this.pool.query(
         `INSERT INTO rule_results (
             audit_session_id,
+            tenant_id,
             rule_id,
             category,
             severity,
@@ -583,17 +588,19 @@ export class AuditPipelineService {
             execution_time_ms
           ) VALUES (
             $1::uuid,
-            $2,
-            $3::rule_category,
-            $4::rule_severity,
-            $5::rule_result_status,
-            $6,
+            $2::uuid,
+            $3,
+            $4::rule_category,
+            $5::rule_severity,
+            $6::rule_result_status,
             $7,
-            $8::jsonb,
-            $9
+            $8,
+            $9::jsonb,
+            $10
           )`,
         [
           auditSessionId,
+          params.tenantId,
           result.ruleId,
           result.category,
           result.severity,
@@ -746,19 +753,20 @@ export class AuditPipelineService {
 
     const sessionInsert = await this.pool.query<{ id: string }>(
       `INSERT INTO audit_sessions (
-          claim_id, user_id, rulepack_version, rulepack_checksum, decision,
+          claim_id, tenant_id, user_id, rulepack_version, rulepack_checksum, decision,
           total_rules, passed_count, failed_count, warning_count, incomplete_count,
           skipped_count, deterministic_score, ml_quality_score, fix_report_md,
           execution_time_ms, started_at, completed_at, payer_id, payer_slug
         ) VALUES (
-          $1::uuid, $2::uuid, $3, $4, $5::audit_decision,
-          $6, $7, $8, $9, $10,
-          $11, $12, NULL, $13,
-          $14, $15::timestamptz, now(), $16::uuid, $17
+          $1::uuid, $2::uuid, $3::uuid, $4, $5, $6::audit_decision,
+          $7, $8, $9, $10, $11,
+          $12, $13, NULL, $14,
+          $15, $16::timestamptz, now(), $17::uuid, $18
         )
         RETURNING id`,
       [
         params.claimId,
+        params.tenantId,
         params.userId,
         rulepackVersion,
         rulepackChecksum,
@@ -787,14 +795,15 @@ export class AuditPipelineService {
     for (const result of evaluation.results) {
       await this.pool.query(
         `INSERT INTO rule_results (
-            audit_session_id, rule_id, category, severity, result,
+            audit_session_id, tenant_id, rule_id, category, severity, result,
             message, remediation, evidence_json, execution_time_ms
           ) VALUES (
-            $1::uuid, $2, $3::rule_category, $4::rule_severity, $5::rule_result_status,
-            $6, $7, $8::jsonb, $9
+            $1::uuid, $2::uuid, $3, $4::rule_category, $5::rule_severity, $6::rule_result_status,
+            $7, $8, $9::jsonb, $10
           )`,
         [
           auditSessionId,
+          params.tenantId,
           result.ruleId,
           result.category,
           result.severity,
@@ -1104,7 +1113,7 @@ export class AuditPipelineService {
     };
   }
 
-  private async persistExtractedFields(claimId: string, fields: NormalizedExtractedField[]): Promise<void> {
+  private async persistExtractedFields(claimId: string, tenantId: string, fields: NormalizedExtractedField[]): Promise<void> {
     await this.pool.query(
       `DELETE FROM extracted_fields
         WHERE claim_id = $1::uuid
@@ -1122,6 +1131,7 @@ export class AuditPipelineService {
       await this.pool.query(
         `INSERT INTO extracted_fields (
             claim_id,
+            tenant_id,
             document_id,
             page_number,
             field_key,
@@ -1135,18 +1145,20 @@ export class AuditPipelineService {
           ) VALUES (
             $1::uuid,
             $2::uuid,
-            $3,
+            $3::uuid,
             $4,
             $5,
             $6,
-            $7::field_confidence_tier,
-            $8::jsonb,
+            $7,
+            $8::field_confidence_tier,
+            $9::jsonb,
             'OCR',
-            $9,
+            $10,
             false
           )`,
         [
           claimId,
+          tenantId,
           field.documentId,
           field.pageNumber,
           field.key,
@@ -1432,7 +1444,7 @@ export class AuditPipelineService {
 }
 
 export function createAuditPipelineService(
-  pool: Pool,
+  pool: TenantDb,
   logger: FastifyBaseLogger,
   config: Config,
   dependencies: AuditPipelineDependencies = {},

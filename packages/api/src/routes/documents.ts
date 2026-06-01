@@ -8,7 +8,7 @@ import { z } from 'zod';
 import type { FastifyPluginAsync } from 'fastify';
 import type { MultipartFile } from '@fastify/multipart';
 import { fileTypeFromBuffer } from 'file-type';
-import { getPool } from '../db/client.js';
+import { getTenantDb } from '../db/client.js';
 import { requirePermission } from '../plugins/auth.js';
 import { createDocumentService } from '../services/document-service.js';
 import { createLocalFsDocumentStore } from '../storage/local-fs-store.js';
@@ -67,7 +67,7 @@ async function consumeFilePart(part: MultipartFile, maxBytes: number): Promise<B
 }
 
 const documentsRoutes: FastifyPluginAsync = async (fastify) => {
-  const pool = getPool(fastify.config);
+  const pool = getTenantDb(fastify.config);
   const documentStore = createLocalFsDocumentStore(fastify.config.STORAGE_PATH);
   const documentService = createDocumentService(pool, fastify.log, documentStore);
 

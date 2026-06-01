@@ -42,7 +42,11 @@ services:
       - "${API_PORT:-8080}:8080"
     environment:
       NODE_ENV: production
+      # Owner connection — used for migrations/admin (bypasses RLS).
       DATABASE_URL: "postgres://claimflow:${DB_PASSWORD}@postgres:5432/claimflow"
+      # App connection — non-superuser claimflow_app role; all tenant-scoped
+      # queries run through this, under Postgres RLS (item 6c).
+      APP_DATABASE_URL: "postgres://claimflow_app:${APP_DB_PASSWORD:-${DB_PASSWORD}}@postgres:5432/claimflow"
       STORAGE_PATH: /data
       ML_SERVICE_URL: http://ml:8000
       RULEPACK_DIR: /data/rulepacks

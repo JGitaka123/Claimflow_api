@@ -13,7 +13,7 @@ import {
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import { loadConfig, type Config } from '../config.js';
-import { closePool, getPool } from '../db/client.js';
+import { closePool, getAdminPool, getTenantDb, runWithTenant } from '../db/client.js';
 import { buildServer } from '../server.js';
 import { createStateMachineWorkflow } from '../workflows/state-machine.js';
 
@@ -251,6 +251,7 @@ async function insertDummyDocument(pool: Pool, context: SeedContext, claimId: st
     `INSERT INTO documents (
         id,
         claim_id,
+        tenant_id,
         doc_type,
         processing_route,
         mime_type,
@@ -265,6 +266,7 @@ async function insertDummyDocument(pool: Pool, context: SeedContext, claimId: st
       ) VALUES (
         $1::uuid,
         $2::uuid,
+        $4::uuid,
         'PHYSICIAN_NOTES'::doc_type,
         'FULL_OCR_EXTRACT'::doc_processing_route,
         'application/pdf',
@@ -277,7 +279,7 @@ async function insertDummyDocument(pool: Pool, context: SeedContext, claimId: st
         $3::uuid,
         now()
       )`,
-    [randomUUID(), claimId, context.officerUserId],
+    [randomUUID(), claimId, context.officerUserId, context.tenantId],
   );
 }
 
@@ -325,7 +327,7 @@ integrationDescribe('State machine + override integration', () => {
       },
     });
 
-    pool = getPool(config);
+    pool = getAdminPool(config);
     await pool.query('SELECT 1');
     await runMigrations(pool);
 
@@ -351,7 +353,7 @@ integrationDescribe('State machine + override integration', () => {
 
   it('every valid transition from the state diagram succeeds and writes audit trail', async () => {
     const context = await seedBaseData(pool!);
-    const workflow = createStateMachineWorkflow(pool!);
+    const workflow = createStateMachineWorkflow(getTenantDb(config));
 
     const validTransitions: Array<{ from: ClaimStatus; to: ClaimStatus }> = [];
 
@@ -386,14 +388,16 @@ integrationDescribe('State machine + override integration', () => {
         actorRole = 'supervisor';
       }
 
-      const result = await workflow.transitionClaim({
-        claimId,
-        tenantId: context.tenantId,
-        toStatus: transition.to,
-        userId: actorUserId,
-        userRole: actorRole,
-        metadata,
-      });
+      const result = await runWithTenant(context.tenantId, () =>
+        workflow.transitionClaim({
+          claimId,
+          tenantId: context.tenantId,
+          toStatus: transition.to,
+          userId: actorUserId,
+          userRole: actorRole,
+          metadata,
+        }),
+      );
 
       expect(result.status).toBe(expectedFinalStatus);
 
@@ -414,7 +418,7 @@ integrationDescribe('State machine + override integration', () => {
 
   it('every invalid transition is rejected with 422 INVALID_STATE_TRANSITION', async () => {
     const context = await seedBaseData(pool!);
-    const workflow = createStateMachineWorkflow(pool!);
+    const workflow = createStateMachineWorkflow(getTenantDb(config));
     const claimId = await createClaimWithStatus(pool!, context, ClaimStatus.DRAFT);
 
     const statuses = Object.values(ClaimStatus);
@@ -439,13 +443,15 @@ integrationDescribe('State machine + override integration', () => {
         );
 
         try {
-          await workflow.transitionClaim({
-            claimId,
-            tenantId: context.tenantId,
-            toStatus,
-            userId: context.supervisorUserId,
-            userRole: 'supervisor',
-          });
+          await runWithTenant(context.tenantId, () =>
+            workflow.transitionClaim({
+              claimId,
+              tenantId: context.tenantId,
+              toStatus,
+              userId: context.supervisorUserId,
+              userRole: 'supervisor',
+            }),
+          );
 
           throw new Error(`Transition unexpectedly succeeded: ${fromStatus} -> ${toStatus}`);
         } catch (error) {

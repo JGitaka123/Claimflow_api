@@ -6,7 +6,7 @@ import {
 } from '@claimflow/shared';
 import { z } from 'zod';
 import type { FastifyPluginAsync } from 'fastify';
-import { getPool } from '../db/client.js';
+import { getTenantDb } from '../db/client.js';
 import { requirePermission } from '../plugins/auth.js';
 import { createPreauthorizationService } from '../services/preauthorization-service.js';
 
@@ -19,7 +19,7 @@ const ClaimIdParamsSchema = z.object({
 });
 
 const preauthorizationRoutes: FastifyPluginAsync = async (fastify) => {
-  const pool = getPool(fastify.config);
+  const pool = getTenantDb(fastify.config);
   const preauthorizationService = createPreauthorizationService(pool, fastify.log);
 
   fastify.post('/v1/preauthorizations', {

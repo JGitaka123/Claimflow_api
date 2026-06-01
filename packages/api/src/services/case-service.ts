@@ -13,7 +13,8 @@ import {
   type UpdateCaseInput,
 } from '@claimflow/shared';
 import type { FastifyBaseLogger } from 'fastify';
-import type { Pool, PoolClient, QueryResultRow } from 'pg';
+import type { PoolClient, QueryResultRow } from 'pg';
+import type { TenantDb, Queryable } from '../db/client.js';
 import { createWebhookService, type WebhookService } from './webhook-service.js';
 
 const TERMINAL_STATUSES = new Set<CaseStatus>([CaseStatus.CLOSED, CaseStatus.DISMISSED]);
@@ -80,23 +81,12 @@ function mapEvent(row: CaseEventRow): CaseEvent {
 const CASE_COLUMNS =
   'id, tenant_id, title, description, status, priority, assigned_to, resolution, created_by, created_at, updated_at, closed_at';
 
-async function withTransaction<T>(pool: Pool, callback: (client: PoolClient) => Promise<T>): Promise<T> {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const result = await callback(client);
-    await client.query('COMMIT');
-    return result;
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
+async function withTransaction<T>(db: TenantDb, callback: (client: PoolClient) => Promise<T>): Promise<T> {
+  return db.transaction(callback);
 }
 
 async function recordEvent(
-  executor: Pool | PoolClient,
+  executor: Queryable,
   tenantId: string,
   caseId: string,
   userId: string,
@@ -111,7 +101,7 @@ async function recordEvent(
 }
 
 async function assertClaimsInTenant(
-  executor: Pool | PoolClient,
+  executor: Queryable,
   tenantId: string,
   claimIds: string[],
 ): Promise<void> {
@@ -133,7 +123,7 @@ async function assertClaimsInTenant(
 }
 
 async function linkClaimRows(
-  executor: Pool | PoolClient,
+  executor: Queryable,
   tenantId: string,
   caseId: string,
   userId: string,
@@ -165,7 +155,7 @@ export interface CaseService {
 }
 
 async function loadCaseRow(
-  executor: Pool | PoolClient,
+  executor: Queryable,
   tenantId: string,
   caseId: string,
   forUpdate = false,
@@ -182,7 +172,7 @@ async function loadCaseRow(
 }
 
 async function attachLinkedClaims(
-  executor: Pool | PoolClient,
+  executor: Queryable,
   caseId: string,
   investigationCase: InvestigationCase,
 ): Promise<InvestigationCase> {
@@ -197,7 +187,7 @@ async function attachLinkedClaims(
   return investigationCase;
 }
 
-export function createCaseService(pool: Pool, logger: FastifyBaseLogger): CaseService {
+export function createCaseService(pool: TenantDb, logger: FastifyBaseLogger): CaseService {
   const webhookService: WebhookService = createWebhookService(pool, logger);
 
   return {

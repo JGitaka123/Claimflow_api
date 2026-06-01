@@ -9,7 +9,8 @@ import {
 } from '@claimflow/shared';
 import { z } from 'zod';
 import type { FastifyPluginAsync } from 'fastify';
-import { getPool } from '../db/client.js';
+import { getTenantDb } from '../db/client.js';
+import { getPrivilegedPool } from '../db/privileged.js';
 import { createJobQueue } from '../jobs/setup.js';
 import { createAuditPipelineService } from '../workflows/audit-pipeline.js';
 import { createStateMachineWorkflow } from '../workflows/state-machine.js';
@@ -70,10 +71,12 @@ function sanitizeFilename(filename: string): string {
 }
 
 const auditRoutes: FastifyPluginAsync = async (fastify) => {
-  const pool = getPool(fastify.config);
+  const pool = getTenantDb(fastify.config);
   const workflow = createStateMachineWorkflow(pool);
   const auditPipeline = createAuditPipelineService(pool, fastify.log, fastify.config);
-  const jobQueue = createJobQueue(pool, fastify.log, fastify.config);
+  // The job queue manages pgboss + background workers (which bind their own
+  // per-job tenant context), so it runs on the privileged pool.
+  const jobQueue = createJobQueue(getPrivilegedPool(fastify.config), fastify.log, fastify.config);
 
   fastify.addHook('onClose', async () => {
     await jobQueue.stop();

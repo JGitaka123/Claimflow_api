@@ -7,7 +7,7 @@ import { ClaimStatus, ErrorCode } from '@claimflow/shared';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import { loadConfig, type Config } from '../config.js';
-import { getPool, closePool } from '../db/client.js';
+import { getAdminPool, closePool } from '../db/client.js';
 import { buildServer } from '../server.js';
 
 const integrationDatabaseUrl = process.env.CLAIMFLOW_TEST_DATABASE_URL ?? process.env.DATABASE_URL;
@@ -205,7 +205,7 @@ integrationDescribe('Claims routes integration (real Postgres)', () => {
       },
     });
 
-    pool = getPool(config);
+    pool = getAdminPool(config);
 
     try {
       await pool!.query('SELECT 1');
@@ -403,6 +403,7 @@ integrationDescribe('Claims routes integration (real Postgres)', () => {
       `INSERT INTO documents (
           id,
           claim_id,
+          tenant_id,
           doc_type,
           processing_route,
           mime_type,
@@ -416,6 +417,7 @@ integrationDescribe('Claims routes integration (real Postgres)', () => {
         ) VALUES (
           $1::uuid,
           $2::uuid,
+          $4::uuid,
           'PHYSICIAN_NOTES'::doc_type,
           'FULL_OCR_EXTRACT'::doc_processing_route,
           'application/pdf',
@@ -427,13 +429,14 @@ integrationDescribe('Claims routes integration (real Postgres)', () => {
           'COMPLETED'::doc_processing_status,
           $3::uuid
         )`,
-      [randomUUID(), claimId, seed.userId],
+      [randomUUID(), claimId, seed.userId, seed.tenantId],
     );
 
     await pool!.query(
       `INSERT INTO audit_sessions (
           id,
           claim_id,
+          tenant_id,
           user_id,
           rulepack_version,
           rulepack_checksum,
@@ -449,6 +452,7 @@ integrationDescribe('Claims routes integration (real Postgres)', () => {
         ) VALUES (
           $1::uuid,
           $2::uuid,
+          $4::uuid,
           $3::uuid,
           '1.0.0',
           'checksum',
@@ -462,7 +466,7 @@ integrationDescribe('Claims routes integration (real Postgres)', () => {
           now() - interval '1 minute',
           now()
         )`,
-      [randomUUID(), claimId, seed.userId],
+      [randomUUID(), claimId, seed.userId, seed.tenantId],
     );
 
     const response = await app!.inject({

@@ -10,7 +10,7 @@ import {
 } from '@claimflow/shared';
 import { z } from 'zod';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
-import { getPool } from '../db/client.js';
+import { getTenantDb } from '../db/client.js';
 import { requirePermission } from '../plugins/auth.js';
 import { createCaseService } from '../services/case-service.js';
 
@@ -25,7 +25,7 @@ function requireContext(request: FastifyRequest): { tenantId: string; userId: st
 }
 
 const caseRoutes: FastifyPluginAsync = async (fastify) => {
-  const pool = getPool(fastify.config);
+  const pool = getTenantDb(fastify.config);
   const caseService = createCaseService(pool, fastify.log);
 
   fastify.post('/v1/cases', { preHandler: requirePermission('case:manage') }, async (request, reply) => {

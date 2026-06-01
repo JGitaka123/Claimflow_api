@@ -1,7 +1,7 @@
 import fp from 'fastify-plugin';
 import { DomainError, ErrorCode, ScoreClaimSchema } from '@claimflow/shared';
 import type { FastifyPluginAsync } from 'fastify';
-import { getPool } from '../db/client.js';
+import { getTenantDb } from '../db/client.js';
 import { requirePermission } from '../plugins/auth.js';
 import { createScoringService } from '../services/scoring-service.js';
 
@@ -9,7 +9,7 @@ import { createScoringService } from '../services/scoring-service.js';
 // claim + an audit session, and returns a public-safe score (no rule internals).
 // Errors are RFC 7807 problem+json (see error-handler plugin).
 const scoreRoutes: FastifyPluginAsync = async (fastify) => {
-  const pool = getPool(fastify.config);
+  const pool = getTenantDb(fastify.config);
   const scoringService = createScoringService(pool, fastify.log, fastify.config);
 
   fastify.post(
