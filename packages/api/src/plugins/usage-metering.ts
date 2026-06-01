@@ -3,7 +3,8 @@ import { DomainError, ErrorCode } from '@claimflow/shared';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import type { Config } from '../config.js';
 import { getTenantDb } from '../db/client.js';
-import { createMeteringService } from '../services/metering-service.js';
+import { getPrivilegedPool } from '../db/privileged.js';
+import { createMeteringService, recordUsageDrop } from '../services/metering-service.js';
 
 // Per-tenant + per-API-key rate limiting and usage metering (item 6d).
 //
@@ -42,6 +43,9 @@ interface UsageMeteringOptions {
 const usageMeteringPlugin: FastifyPluginAsync<UsageMeteringOptions> = async (fastify, options) => {
   const db = getTenantDb(options.config);
   const metering = createMeteringService(db);
+  // Privileged pool for the fail-open drop record only (the tenant-scoped path
+  // has just failed when we use it — see recordUsageDrop).
+  const privilegedPool = getPrivilegedPool(options.config);
 
   fastify.addHook('preHandler', async (request, reply) => {
     if (SKIP_PATHS.has(requestPath(request))) {
@@ -71,10 +75,18 @@ const usageMeteringPlugin: FastifyPluginAsync<UsageMeteringOptions> = async (fas
         windowMs: WINDOW_MS,
       });
     } catch (error) {
-      // Metering/limiting is best-effort: a counter-store failure must never take
-      // down the request path. Fail OPEN (allow) and log — the coarse global
-      // per-IP limiter (rate-limit.ts) still provides a DoS floor.
-      request.log.warn({ err: error, tenantId }, 'usage metering failed; allowing request');
+      // LOUD fail-open. Metering/limiting is best-effort: a counter-store failure
+      // must never take down the request path (the coarse global per-IP limiter
+      // in rate-limit.ts remains the DoS floor). But the bypass must be VISIBLE,
+      // not silent: bump a Prometheus counter, record the unmetered request to
+      // usage_drops (privileged pool) for billing reconciliation, and warn-log a
+      // structured, alertable event.
+      fastify.metricsRegistry.recordMeteringFailOpen();
+      request.log.warn(
+        { err: error, event: 'metering_fail_open', tenantId, principalId, route: requestPath(request) },
+        'usage metering failed; allowing request unmetered (fail-open)',
+      );
+      await recordUsageDrop(privilegedPool, { tenantId, principalId, routeClass: 'default', windowMs: WINDOW_MS });
       return;
     }
 

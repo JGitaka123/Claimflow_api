@@ -1,3 +1,4 @@
+import type { Pool } from 'pg';
 import type { TenantDb } from '../db/client.js';
 
 // ============================================================================
@@ -114,4 +115,32 @@ export function createMeteringService(db: TenantDb): MeteringService {
       };
     },
   };
+}
+
+/**
+ * Record a dropped (unmetered) request when the tenant-scoped counter store
+ * errored and the request was allowed through (fail-open). Written on the
+ * PRIVILEGED pool, because the tenant-scoped path just failed — re-using it
+ * would likely fail too. tenant_id is carried as telemetry data (not an RLS
+ * scope); the table holds only counts. Best-effort: never throws.
+ */
+export async function recordUsageDrop(
+  privilegedPool: Pool,
+  params: { tenantId: string; principalId: string | null; routeClass: string; windowMs: number; now?: Date },
+): Promise<void> {
+  const now = params.now ?? new Date();
+  const start = windowStart(now, params.windowMs);
+  const principal = params.principalId ?? WINDOW_PLACEHOLDER_PRINCIPAL;
+  try {
+    await privilegedPool.query(
+      `INSERT INTO usage_drops (tenant_id, principal_id, route_class, window_start, dropped_count, updated_at)
+       VALUES ($1::uuid, $2, $3, $4::timestamptz, 1, now())
+       ON CONFLICT (tenant_id, principal_id, route_class, window_start)
+       DO UPDATE SET dropped_count = usage_drops.dropped_count + 1, updated_at = now()`,
+      [params.tenantId, principal, params.routeClass, start.toISOString()],
+    );
+  } catch {
+    // Telemetry of last resort — if even this fails, the in-memory fail-open
+    // counter + the warn log remain. Do not let it affect the request.
+  }
 }

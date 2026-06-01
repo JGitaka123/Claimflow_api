@@ -56,11 +56,37 @@ counter landing on 20 (every request metered once).
 wins; else a tenant-wide (`principal_id IS NULL`) row; else the config default
 (`API_KEY_RATE_LIMIT_RPM` for machine traffic, `TENANT_RATE_LIMIT_RPM` for human traffic).
 
-## Availability: fail-open
-Metering/limiting is **best-effort**. If the counter store errors, the plugin **fails open** (logs +
-allows) — a transient DB blip must not 500 every request. The global per-IP limiter remains the DoS
-floor. (Strict fail-closed limiting would trade availability for billing precision; not worth it for
-a soft budget.)
+## Availability: LOUD fail-open
+Metering/limiting is **best-effort**. If the counter store errors, the plugin **fails open** (allows)
+— a transient DB blip must not 500 every request. The fail-open is **not silent**:
+- **Metric:** `claimflow_metering_fail_open_total` (Prometheus counter at `/metrics`) increments on
+  every fail-open, so a counter-store outage or a bypass probe is alertable, not invisible.
+- **Structured log:** a `warn` with `event: 'metering_fail_open'`, `tenantId`, `principalId`, `route`.
+- **Dropped-usage record:** the unmetered request is recorded in `usage_drops` (migration `026`),
+  keyed `(tenant_id, principal_id, route_class, window_start)` with an atomic `dropped_count`
+  increment, so usage that went unmetered during the outage is **measurable for billing
+  reconciliation** later. This write uses the **privileged pool** — the tenant-scoped path is exactly
+  what just failed, so re-using it would likely fail too. `usage_drops` carries `tenant_id` as
+  telemetry data (not an RLS scope), holds only counts (no PHI), is never read on the request path,
+  and is **not** granted to the app role (same disposition as `outbox_events`/`sync_events`). The
+  drop write is itself best-effort (never throws).
+
+### Why fail-open is safe here — abuse-control analysis
+None of the 6d limits is a **sole** abuse control, so fail-open is the right default:
+- **DoS / volumetric abuse** is covered by the coarse **global per-IP limiter** (`plugins/rate-limit.ts`,
+  in-memory, runs pre-auth) — independent of the Postgres counter store, so it keeps working during a
+  store outage. Auth-endpoint abuse has its own tighter per-route limit (20/min on `/v1/auth/*`).
+- **Authn/authz** is the real gate on a compromised credential: a leaked API key / OAuth client is
+  bounded by its **explicit scopes** and its **tenant** (RLS), and is independently **revocable**
+  (6a/6b). Revoking the key — not the rate limit — is the response to compromise.
+- The 6d per-tenant/per-key limits are therefore genuinely **soft budgets** (fair-use + the billing
+  signal), not the last line of defense. For a soft budget, the **fixed-window boundary burst** (up to
+  ~2× the limit across a window edge) is acceptable, and availability > strict enforcement.
+
+If a future limit ever becomes the *sole* control against a compromised key (e.g. a hard
+spend/quota cap with no scope/revocation backstop), **that specific limit must fail _closed_** — the
+metering service is structured so a per-route-class policy could opt into fail-closed without changing
+the shared path. No such limit exists today.
 
 ## /metrics hardening (the flagged concern)
 `GET /metrics` serves **cross-tenant aggregate counts** (no per-tenant rows, no PHI) on the privileged

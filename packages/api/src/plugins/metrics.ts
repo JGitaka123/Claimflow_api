@@ -48,6 +48,14 @@ export class MetricsRegistry {
   private readonly startedAtMs = Date.now();
   private readonly requestCounters = new Map<string, number>();
   private readonly durationByRoute = new Map<string, DurationSeries>();
+  // Loud fail-open: total requests allowed through unmetered because the usage
+  // counter store errored. A non-zero / rising value signals a counter-store
+  // outage or a bypass probe — surfaced at /metrics for alerting.
+  private meteringFailOpenTotal = 0;
+
+  recordMeteringFailOpen(): void {
+    this.meteringFailOpenTotal += 1;
+  }
 
   recordRequest(method: string, route: string, statusCode: number, durationMs: number): void {
     const normalizedMethod = normalizeMethod(method);
@@ -133,6 +141,10 @@ export class MetricsRegistry {
     lines.push('# HELP claimflow_db_up Database connectivity status (1=up, 0=down).');
     lines.push('# TYPE claimflow_db_up gauge');
     lines.push(`claimflow_db_up ${databaseMetrics.dbUp}`);
+
+    lines.push('# HELP claimflow_metering_fail_open_total Requests allowed through unmetered due to a counter-store error.');
+    lines.push('# TYPE claimflow_metering_fail_open_total counter');
+    lines.push(`claimflow_metering_fail_open_total ${this.meteringFailOpenTotal}`);
 
     lines.push('# HELP claimflow_claims_total Claims grouped by status.');
     lines.push('# TYPE claimflow_claims_total gauge');
