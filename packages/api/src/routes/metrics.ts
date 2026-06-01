@@ -1,7 +1,7 @@
 import fp from 'fastify-plugin';
 import type { FastifyPluginAsync, FastifyBaseLogger } from 'fastify';
 import type { Pool, QueryResultRow } from 'pg';
-import { getPool } from '../db/client.js';
+import { getPrivilegedPool } from '../db/privileged.js';
 import type { DatabaseMetrics } from '../plugins/metrics.js';
 
 interface GroupCountRow extends QueryResultRow {
@@ -128,7 +128,7 @@ async function collectDatabaseMetrics(pool: Pool, logger: FastifyBaseLogger): Pr
 
 const metricsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/metrics', async (_request, reply) => {
-    const pool = getPool(fastify.config);
+    const pool = getPrivilegedPool(fastify.config);
     const databaseMetrics = await collectDatabaseMetrics(pool, fastify.log);
     const payload = fastify.metricsRegistry.render(databaseMetrics);
 

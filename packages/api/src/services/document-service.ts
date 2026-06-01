@@ -10,7 +10,8 @@ import {
   type DocumentType,
 } from '@claimflow/shared';
 import type { FastifyBaseLogger } from 'fastify';
-import type { Pool, PoolClient, QueryResultRow } from 'pg';
+import type { PoolClient, QueryResultRow } from 'pg';
+import type { TenantDb } from '../db/client.js';
 import type { Readable } from 'node:stream';
 import type { DocumentStore } from '../storage/document-store.js';
 
@@ -137,20 +138,8 @@ function getExtensionForMimeType(mimeType: string): string {
   });
 }
 
-async function withTransaction<T>(pool: Pool, callback: (client: PoolClient) => Promise<T>): Promise<T> {
-  const client = await pool.connect();
-
-  try {
-    await client.query('BEGIN');
-    const result = await callback(client);
-    await client.query('COMMIT');
-    return result;
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
+async function withTransaction<T>(db: TenantDb, callback: (client: PoolClient) => Promise<T>): Promise<T> {
+  return db.transaction(callback);
 }
 
 function mapDocument(row: DocumentRow): ClaimDocumentListItem {
@@ -171,7 +160,7 @@ function mapDocument(row: DocumentRow): ClaimDocumentListItem {
 
 export class DocumentService {
   constructor(
-    private readonly pool: Pool,
+    private readonly pool: TenantDb,
     private readonly logger: FastifyBaseLogger,
     private readonly store: DocumentStore,
   ) {}
@@ -232,6 +221,7 @@ export class DocumentService {
           `INSERT INTO documents (
               id,
               claim_id,
+              tenant_id,
               doc_type,
               processing_route,
               mime_type,
@@ -245,21 +235,23 @@ export class DocumentService {
             ) VALUES (
               $1::uuid,
               $2::uuid,
-              $3::doc_type,
-              $4::doc_processing_route,
-              $5,
+              $3::uuid,
+              $4::doc_type,
+              $5::doc_processing_route,
               $6,
               $7,
               $8,
               $9,
               $10,
+              $11,
               'PENDING'::doc_processing_status,
-              $11::uuid
+              $12::uuid
             )
             RETURNING *`,
           [
             documentId,
             params.claimId,
+            params.tenantId,
             params.docType,
             processingRoute,
             params.mimeType,
@@ -488,6 +480,6 @@ export class DocumentService {
   }
 }
 
-export function createDocumentService(pool: Pool, logger: FastifyBaseLogger, store: DocumentStore): DocumentService {
+export function createDocumentService(pool: TenantDb, logger: FastifyBaseLogger, store: DocumentStore): DocumentService {
   return new DocumentService(pool, logger, store);
 }

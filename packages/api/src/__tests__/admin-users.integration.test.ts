@@ -7,7 +7,7 @@ import { ErrorCode, UserRole, type ApiErrorResponse } from '@claimflow/shared';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import { loadConfig, type Config } from '../config.js';
-import { closePool, getPool } from '../db/client.js';
+import { closePool, getAdminPool } from '../db/client.js';
 import { buildServer } from '../server.js';
 
 const integrationDatabaseUrl = process.env.CLAIMFLOW_TEST_DATABASE_URL ?? process.env.DATABASE_URL;
@@ -275,7 +275,7 @@ integrationDescribe('Admin users routes integration', () => {
       },
     });
 
-    pool = getPool(config);
+    pool = getAdminPool(config);
     await pool.query('SELECT 1');
     await runMigrations(pool);
 

@@ -26,9 +26,10 @@ function createAuthHeader(): string {
   const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url');
   const payload = Buffer.from(
     JSON.stringify({
-      sub: 'user-1',
-      tenantId: 'tenant-1',
-      facilityId: 'facility-1',
+      sub: '00000000-0000-0000-0000-0000000000a1',
+      // Tenant context is now bound into the request (RLS); it must be a real UUID.
+      tenantId: '00000000-0000-0000-0000-0000000000b2',
+      facilityId: '00000000-0000-0000-0000-0000000000c3',
       role: 'claims_officer',
     }),
   ).toString('base64url');

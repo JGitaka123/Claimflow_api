@@ -4,7 +4,8 @@ import {
   ErrorCode,
   isValidTransition,
 } from '@claimflow/shared';
-import type { Pool, PoolClient, QueryResultRow } from 'pg';
+import type { PoolClient, QueryResultRow } from 'pg';
+import type { TenantDb } from '../db/client.js';
 
 const OVERRIDE_APPROVER_ROLES = new Set(['supervisor', 'admin', 'super_admin']);
 
@@ -63,20 +64,8 @@ function toIsoString(value: string | Date): string {
   return (value instanceof Date ? value : new Date(value)).toISOString();
 }
 
-async function withTransaction<T>(pool: Pool, callback: (client: PoolClient) => Promise<T>): Promise<T> {
-  const client = await pool.connect();
-
-  try {
-    await client.query('BEGIN');
-    const result = await callback(client);
-    await client.query('COMMIT');
-    return result;
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
+async function withTransaction<T>(db: TenantDb, callback: (client: PoolClient) => Promise<T>): Promise<T> {
+  return db.transaction(callback);
 }
 
 async function loadClaimForUpdate(client: PoolClient, claimId: string, tenantId: string): Promise<ClaimStateRow> {
@@ -291,7 +280,7 @@ async function resolveAuditDecision(
 }
 
 export class StateMachineWorkflow {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: TenantDb) {}
 
   async transitionClaim(params: TransitionParams): Promise<TransitionResult> {
     return withTransaction(this.pool, async (client) => {
@@ -491,6 +480,6 @@ export class StateMachineWorkflow {
   }
 }
 
-export function createStateMachineWorkflow(pool: Pool): StateMachineWorkflow {
+export function createStateMachineWorkflow(pool: TenantDb): StateMachineWorkflow {
   return new StateMachineWorkflow(pool);
 }

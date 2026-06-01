@@ -6,7 +6,7 @@ import {
   PayerSlugParamSchema,
 } from '@claimflow/shared';
 import type { FastifyPluginAsync } from 'fastify';
-import { getPool } from '../db/client.js';
+import { getTenantDb } from '../db/client.js';
 import { createPayerService } from '../services/payer-service.js';
 
 // The payer catalog is global reference data needed by any authenticated user to
@@ -14,7 +14,7 @@ import { createPayerService } from '../services/payer-service.js';
 // tenant-scoped, so these routes require authentication (enforced globally by the
 // auth plugin) but no specific RBAC permission.
 const payerRoutes: FastifyPluginAsync = async (fastify) => {
-  const pool = getPool(fastify.config);
+  const pool = getTenantDb(fastify.config);
   const payerService = createPayerService(pool);
 
   fastify.get('/v1/payers', async (request, reply) => {

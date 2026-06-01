@@ -4,7 +4,7 @@ import { DomainError, ErrorCode, UserRole } from '@claimflow/shared';
 import { z } from 'zod';
 import type { FastifyPluginAsync } from 'fastify';
 import type { QueryResultRow } from 'pg';
-import { getPool } from '../db/client.js';
+import { getTenantDb } from '../db/client.js';
 import { requirePermission, requireRole, requireStepUpMfa } from '../plugins/auth.js';
 
 const ActivateRulepackParamsSchema = z.object({
@@ -147,7 +147,7 @@ function ensureCanManageSuperAdmin(actorRole: UserRole, targetRole: UserRole): v
   }
 }
 
-async function ensureFacilityBelongsToTenant(pool: ReturnType<typeof getPool>, tenantId: string, facilityId: string): Promise<void> {
+async function ensureFacilityBelongsToTenant(pool: ReturnType<typeof getTenantDb>, tenantId: string, facilityId: string): Promise<void> {
   const facility = await pool.query<ExistsRow>(
     `SELECT id
        FROM facilities
@@ -163,7 +163,7 @@ async function ensureFacilityBelongsToTenant(pool: ReturnType<typeof getPool>, t
   }
 }
 
-async function getTenantUser(pool: ReturnType<typeof getPool>, tenantId: string, userId: string): Promise<AdminUserRow> {
+async function getTenantUser(pool: ReturnType<typeof getTenantDb>, tenantId: string, userId: string): Promise<AdminUserRow> {
   const userResult = await pool.query<AdminUserRow>(
     `SELECT
         id,
@@ -195,7 +195,7 @@ async function getTenantUser(pool: ReturnType<typeof getPool>, tenantId: string,
 }
 
 const adminRoutes: FastifyPluginAsync = async (fastify) => {
-  const pool = getPool(fastify.config);
+  const pool = getTenantDb(fastify.config);
 
   fastify.get('/v1/admin/users', {
     preHandler: [

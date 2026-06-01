@@ -6,7 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import { loadConfig, type Config } from '../config.js';
-import { closePool, getPool } from '../db/client.js';
+import { closePool, getAdminPool } from '../db/client.js';
 import { buildServer } from '../server.js';
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -164,7 +164,7 @@ integrationDescribe('OAuth2 client-credentials integration (real Postgres)', () 
         KEY_PATH: testKeysPath,
       },
     });
-    pool = getPool(config);
+    pool = getAdminPool(config);
     await runMigrations(pool);
     app = buildServer({ config });
     await app.ready();

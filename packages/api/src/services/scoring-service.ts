@@ -15,7 +15,7 @@ import {
   type ScoreClaimInput,
 } from '@claimflow/shared';
 import type { FastifyBaseLogger } from 'fastify';
-import type { Pool } from 'pg';
+import type { TenantDb } from '../db/client.js';
 import type { Config } from '../config.js';
 import { createClaimService, type ClaimService } from './claim-service.js';
 import {
@@ -205,7 +205,7 @@ export class ScoringService {
   private readonly claimService: ClaimService;
   private readonly auditPipeline: AuditPipelineService;
 
-  constructor(pool: Pool, logger: FastifyBaseLogger, config: Config) {
+  constructor(pool: TenantDb, logger: FastifyBaseLogger, config: Config) {
     this.claimService = createClaimService(pool, logger);
     this.auditPipeline = createAuditPipelineService(pool, logger, config);
   }
@@ -256,6 +256,6 @@ export class ScoringService {
   }
 }
 
-export function createScoringService(pool: Pool, logger: FastifyBaseLogger, config: Config): ScoringService {
+export function createScoringService(pool: TenantDb, logger: FastifyBaseLogger, config: Config): ScoringService {
   return new ScoringService(pool, logger, config);
 }

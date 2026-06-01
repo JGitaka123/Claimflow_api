@@ -13,9 +13,9 @@ Status legend: ✅ done · 🟡 in progress · ⛔ blocked · ⬜ not started
 | 3 | Scoring endpoint (`POST /v1/claims/score`, FHIR input, reason codes, problem+json) | ✅ done | #4 → landed via #8 |
 | 4 | Async + batch + signed webhooks | ✅ webhooks done | #5 → landed via #8 — async `/batch` = follow-up |
 | 5 | Case management API | ✅ done | #6 → landed via #8 |
-| 6a | Tenant-scoped API keys (machine auth) | ⛔ STOP GATE — awaiting your merge | [#7](https://github.com/JGitaka123/Claimflow_api/pull/7) (open, CI-green) |
-| 6b | OAuth2 client-credentials | ⛔ STOP GATE — awaiting your merge | _this PR_ (stacked on #7) |
-| 6c | Postgres Row-Level Security | ⛔ STOP GATE — blocked on 6a/6b merge | — |
+| 6a | Tenant-scoped API keys (machine auth) | ✅ done | #7 (merged) |
+| 6b | OAuth2 client-credentials | ✅ done | #9 (merged) |
+| 6c | Postgres Row-Level Security | 🟡 implemented (STOP GATE) — awaiting your merge | _this PR_ (design: #10) |
 | 6d | Per-tenant + per-key rate limiting & metering | ⛔ STOP GATE — not started | — |
 | 7 | Observability + ops + usage metering | ⬜ not started | — |
 | 8 | Developer experience: interactive docs, sandbox, SDKs | ⬜ not started — **OpenAPI 3.1 spec + CI sync check authored first** | — |
@@ -117,7 +117,21 @@ limits/metering. See `docs/auth-and-tenancy-design.md`.
   `/v1/oauth/clients` admin CRUD (`system:settings`, secret once). problem+json on the token endpoint.
   Tests: 8 integration cases (create/list/revoke, token issuance + authenticated request, scope
   enforcement, JSON+form, down-scope, scope-not-granted, bad credentials, revoked client, bad grant).
-- **6c — Postgres RLS backstop:** pending (cross-cutting; rolled out carefully with isolation tests).
+- **6c — Postgres RLS backstop (this PR, STOP GATE):** design in `docs/rls-design.md` (PR #10).
+  Migrations `023` (non-superuser `claimflow_app` role + least-privilege grants; denormalized
+  `tenant_id` on hot child tables with composite FKs so a child can't diverge from its parent;
+  `idempotency_keys` tenant scoping + composite PK; tenant-leading indexes) and `024` (ENABLE+FORCE
+  RLS + `FOR ALL` USING/WITH CHECK policies on every tenant table; EXISTS-join policies on leaf
+  tables; append-only audit_trail/case_events; `app.current_tenant_id()` returns NULL on
+  unset/empty/invalid → fail-closed). App layer: a two-pool model in `db/client.ts` — tenant code
+  reaches the DB only via `getTenantDb()` (binds `app.current_tenant` with SET LOCAL per
+  transaction, sourced from an AsyncLocalStorage context set in the tenant plugin); cross-tenant
+  pre-context paths use `getPrivilegedPool()` (allowlisted); migration/test harnesses use
+  `getAdminPool()`. CI guards: a meta-test fails if any app-writable table lacks ENABLE+FORCE+policy,
+  plus a static import guard restricting the privileged/admin pools. Tests: `rls-isolation`
+  (as the real `claimflow_app` role — cross-tenant read/write denied, fail-closed on unset/empty,
+  append-only proven, globals readable) + `rls-guard`. Full gate green: typecheck all; API 134;
+  rule-engine 300; shared 6.
 - **6d — per-tenant + per-key rate limiting & usage metering:** pending.
 
 ### STOP GATES (per the merge policy — I build, you merge)

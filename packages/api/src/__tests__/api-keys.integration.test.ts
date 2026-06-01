@@ -6,7 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import { loadConfig, type Config } from '../config.js';
-import { getPool, closePool } from '../db/client.js';
+import { getAdminPool, closePool } from '../db/client.js';
 import { buildServer } from '../server.js';
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -119,7 +119,7 @@ integrationDescribe('API keys integration (real Postgres)', () => {
       exitOnError: false,
       env: { DATABASE_URL: integrationDatabaseUrl, NODE_ENV: 'test', LOG_LEVEL: 'silent', RATE_LIMIT_RPM: '1000' },
     });
-    pool = getPool(config);
+    pool = getAdminPool(config);
     await runMigrations(pool);
     app = buildServer({ config });
     await app.ready();

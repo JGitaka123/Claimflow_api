@@ -4,6 +4,7 @@ import type { Pool, QueryResultRow } from 'pg';
 import type { Readable } from 'node:stream';
 import { DomainError, ErrorCode } from '@claimflow/shared';
 import type { Config } from '../config.js';
+import { getTenantDb, runWithTenant } from '../db/client.js';
 import { createExportService } from '../services/export-service.js';
 import { createWebhookService, type WebhookService } from '../services/webhook-service.js';
 import { createAuditPipelineService } from '../workflows/audit-pipeline.js';
@@ -239,9 +240,14 @@ export class JobQueueManager {
       schema: 'pgboss',
     });
 
-    this.auditPipeline = createAuditPipelineService(this.pool, this.logger, this.config);
-    this.exportService = createExportService(this.pool, this.logger, this.config);
-    this.webhookService = createWebhookService(this.pool, this.logger);
+    // Tenant services run under a per-job tenant context (runWithTenant) on the
+    // app-role TenantDb; the job manager's own admin queries (pgboss tables,
+    // cross-tenant batch claim selection) and the webhook dispatcher use the
+    // privileged pool directly.
+    const tenantDb = getTenantDb(this.config);
+    this.auditPipeline = createAuditPipelineService(tenantDb, this.logger, this.config);
+    this.exportService = createExportService(tenantDb, this.logger, this.config);
+    this.webhookService = createWebhookService(tenantDb, this.logger);
   }
 
   async stop(): Promise<void> {
@@ -624,7 +630,7 @@ export class JobQueueManager {
 
     this.webhookDispatchTimer = setInterval(() => {
       this.webhookService
-        .dispatchDueDeliveries()
+        .dispatchDueDeliveries(this.pool)
         .catch((error) => this.logger.warn({ err: error }, 'webhook dispatch cycle failed'));
     }, WEBHOOK_DISPATCH_INTERVAL_MS);
 
@@ -677,35 +683,29 @@ export class JobQueueManager {
         };
       }
 
-      return processDocumentHandler({
-        jobId: job.id,
-        data: {
-          documentId: payload.documentId,
-          claimId: payload.claimId,
-          tenantId: payload.tenantId,
-        },
-      });
+      const { documentId, claimId, tenantId } = payload;
+      // Bind the job's tenant so the handler's tenant-scoped queries run under RLS.
+      return runWithTenant(tenantId, () =>
+        processDocumentHandler({
+          jobId: job.id,
+          data: { documentId, claimId, tenantId },
+        }),
+      );
     });
 
     await this.boss.work(RUN_AUDIT_JOB, async (job) => {
-      return runAuditHandler({
-        jobId: job.id,
-        data: job.data as RunAuditJobData,
-      });
+      const data = job.data as RunAuditJobData;
+      return runWithTenant(data.tenantId, () => runAuditHandler({ jobId: job.id, data }));
     });
 
     await this.boss.work(BATCH_AUDIT_JOB, async (job) => {
-      return batchAuditHandler({
-        jobId: job.id,
-        data: job.data as BatchAuditJobData,
-      });
+      const data = job.data as BatchAuditJobData;
+      return runWithTenant(data.tenantId, () => batchAuditHandler({ jobId: job.id, data }));
     });
 
     await this.boss.work(GENERATE_EXPORT_JOB, async (job) => {
-      return generateExportHandler({
-        jobId: job.id,
-        data: job.data as GenerateExportJobData,
-      });
+      const data = job.data as GenerateExportJobData;
+      return runWithTenant(data.tenantId, () => generateExportHandler({ jobId: job.id, data }));
     });
 
     this.workersRegistered = true;

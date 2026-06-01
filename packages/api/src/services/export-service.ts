@@ -7,7 +7,8 @@ import React from 'react';
 import { Document, Page, Text, View, StyleSheet, pdf } from '@react-pdf/renderer';
 import { DomainError, ErrorCode } from '@claimflow/shared';
 import type { FastifyBaseLogger } from 'fastify';
-import type { Pool, QueryResultRow } from 'pg';
+import type { QueryResultRow } from 'pg';
+import type { TenantDb } from '../db/client.js';
 import type { Config } from '../config.js';
 import { createLocalFsDocumentStore } from '../storage/local-fs-store.js';
 import { createAuditPipelineService } from '../workflows/audit-pipeline.js';
@@ -207,7 +208,7 @@ export class ExportService {
   private readonly documentStore: ReturnType<typeof createLocalFsDocumentStore>;
 
   constructor(
-    private readonly pool: Pool,
+    private readonly pool: TenantDb,
     private readonly logger: FastifyBaseLogger,
     private readonly config: Config,
   ) {
@@ -542,6 +543,6 @@ export class ExportService {
   }
 }
 
-export function createExportService(pool: Pool, logger: FastifyBaseLogger, config: Config): ExportService {
+export function createExportService(pool: TenantDb, logger: FastifyBaseLogger, config: Config): ExportService {
   return new ExportService(pool, logger, config);
 }

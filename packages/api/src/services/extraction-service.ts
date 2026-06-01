@@ -1,5 +1,6 @@
 import { DomainError, ErrorCode, type FieldConfidenceTier } from '@claimflow/shared';
-import type { Pool, PoolClient, QueryResultRow } from 'pg';
+import type { PoolClient, QueryResultRow } from 'pg';
+import type { TenantDb } from '../db/client.js';
 
 interface GetPageExtractionParams {
   tenantId: string;
@@ -113,20 +114,8 @@ function mapExtractedField(row: ExtractedFieldRow): {
   };
 }
 
-async function withTransaction<T>(pool: Pool, callback: (client: PoolClient) => Promise<T>): Promise<T> {
-  const client = await pool.connect();
-
-  try {
-    await client.query('BEGIN');
-    const result = await callback(client);
-    await client.query('COMMIT');
-    return result;
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
+async function withTransaction<T>(db: TenantDb, callback: (client: PoolClient) => Promise<T>): Promise<T> {
+  return db.transaction(callback);
 }
 
 export interface PageExtractionResult {
@@ -180,7 +169,7 @@ export interface CorrectFieldResult {
 }
 
 export class ExtractionService {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: TenantDb) {}
 
   async getPageExtraction(params: GetPageExtractionParams): Promise<PageExtractionResult> {
     const contextResult = await this.pool.query<PageContextRow>(
@@ -409,6 +398,6 @@ export class ExtractionService {
   }
 }
 
-export function createExtractionService(pool: Pool): ExtractionService {
+export function createExtractionService(pool: TenantDb): ExtractionService {
   return new ExtractionService(pool);
 }

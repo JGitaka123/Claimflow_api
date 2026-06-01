@@ -2,14 +2,14 @@ import fp from 'fastify-plugin';
 import { CreateWebhookEndpointSchema, DomainError, ErrorCode } from '@claimflow/shared';
 import { z } from 'zod';
 import type { FastifyPluginAsync } from 'fastify';
-import { getPool } from '../db/client.js';
+import { getTenantDb } from '../db/client.js';
 import { requirePermission } from '../plugins/auth.js';
 import { createWebhookService } from '../services/webhook-service.js';
 
 const EndpointIdParamsSchema = z.object({ id: z.string().uuid() });
 
 const webhookRoutes: FastifyPluginAsync = async (fastify) => {
-  const pool = getPool(fastify.config);
+  const pool = getTenantDb(fastify.config);
   const webhookService = createWebhookService(pool, fastify.log);
 
   fastify.post(

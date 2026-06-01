@@ -7,7 +7,7 @@ import {
   type Permission,
 } from '@claimflow/shared';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
-import { getPool } from '../db/client.js';
+import { getPrivilegedPool } from '../db/privileged.js';
 import { createAuthService } from '../services/auth-service.js';
 import { createApiKeyService } from '../services/api-key-service.js';
 
@@ -141,7 +141,9 @@ function peekTokenType(token: string): string | null {
 }
 
 const authPlugin: FastifyPluginAsync = async (fastify) => {
-  const pool = getPool(fastify.config);
+  // Credential verification resolves the tenant before any request context
+  // exists, so it runs on the privileged pool (allowlisted in db/privileged.ts).
+  const pool = getPrivilegedPool(fastify.config);
   const authService = createAuthService(pool, fastify.log, fastify.config);
   const apiKeyService = createApiKeyService(pool);
 

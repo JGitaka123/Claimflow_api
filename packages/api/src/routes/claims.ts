@@ -2,7 +2,7 @@ import fp from 'fastify-plugin';
 import { DomainError, ErrorCode, ListClaimsQuerySchema, CreateClaimSchema, UpdateClaimSchema } from '@claimflow/shared';
 import { z } from 'zod';
 import type { FastifyPluginAsync } from 'fastify';
-import { getPool } from '../db/client.js';
+import { getTenantDb } from '../db/client.js';
 import { requirePermission } from '../plugins/auth.js';
 import { createClaimService } from '../services/claim-service.js';
 
@@ -11,7 +11,7 @@ const ClaimIdParamsSchema = z.object({
 });
 
 const claimsRoutes: FastifyPluginAsync = async (fastify) => {
-  const pool = getPool(fastify.config);
+  const pool = getTenantDb(fastify.config);
   const claimService = createClaimService(pool, fastify.log);
 
   fastify.post('/v1/claims', {

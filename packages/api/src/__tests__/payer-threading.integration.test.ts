@@ -7,7 +7,7 @@ import { ErrorCode } from '@claimflow/shared';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import { loadConfig, type Config } from '../config.js';
-import { getPool, closePool } from '../db/client.js';
+import { getAdminPool, closePool } from '../db/client.js';
 import { buildServer } from '../server.js';
 
 const integrationDatabaseUrl = process.env.CLAIMFLOW_TEST_DATABASE_URL ?? process.env.DATABASE_URL;
@@ -142,7 +142,7 @@ integrationDescribe('Payer threading integration (real Postgres)', () => {
       },
     });
 
-    pool = getPool(config);
+    pool = getAdminPool(config);
     await runMigrations(pool);
 
     const payers = await pool.query<{ id: string; slug: string }>(`SELECT id, slug FROM payers`);

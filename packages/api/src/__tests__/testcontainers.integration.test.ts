@@ -8,7 +8,7 @@ import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testconta
 import { ClaimStatus } from '@claimflow/shared';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
-import { closePool, getPool } from '../db/client.js';
+import { closePool, getAdminPool } from '../db/client.js';
 import { loadConfig, type Config } from '../config.js';
 import { buildServer } from '../server.js';
 
@@ -468,7 +468,7 @@ describe('Testcontainers full pipeline integration', () => {
       },
     });
 
-    pool = getPool(config);
+    pool = getAdminPool(config);
     await pool.query('SELECT 1');
     await runMigrations(pool);
 

@@ -8,7 +8,7 @@ import {
 } from '@claimflow/shared';
 import { z } from 'zod';
 import type { FastifyPluginAsync } from 'fastify';
-import { getPool } from '../db/client.js';
+import { getPrivilegedPool } from '../db/privileged.js';
 import { createAuthService } from '../services/auth-service.js';
 
 const TenantHeaderSchema = z.string().uuid();
@@ -26,7 +26,7 @@ const MfaSetupSchema = z.object({
 });
 
 const authRoutes: FastifyPluginAsync = async (fastify) => {
-  const pool = getPool(fastify.config);
+  const pool = getPrivilegedPool(fastify.config);
   const authService = createAuthService(pool, fastify.log, fastify.config);
 
   fastify.post('/v1/auth/login', async (request, reply) => {
