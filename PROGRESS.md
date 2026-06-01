@@ -15,8 +15,8 @@ Status legend: ✅ done · 🟡 in progress · ⛔ blocked · ⬜ not started
 | 5 | Case management API | ✅ done | #6 → landed via #8 |
 | 6a | Tenant-scoped API keys (machine auth) | ✅ done | #7 (merged) |
 | 6b | OAuth2 client-credentials | ✅ done | #9 (merged) |
-| 6c | Postgres Row-Level Security | 🟡 implemented (STOP GATE) — awaiting your merge | _this PR_ (design: #10) |
-| 6d | Per-tenant + per-key rate limiting & metering | ⛔ STOP GATE — not started | — |
+| 6c | Postgres Row-Level Security | ✅ done | #11 (merged) |
+| 6d | Per-tenant + per-key rate limiting & metering | 🟡 implemented (STOP GATE) — awaiting your merge | _this PR_ |
 | 7 | Observability + ops + usage metering | ⬜ not started | — |
 | 8 | Developer experience: interactive docs, sandbox, SDKs | ⬜ not started — **OpenAPI 3.1 spec + CI sync check authored first** | — |
 | 9 | Compliance scaffolding (audit-log immutability, retention, DPA-2019, no-PHI-in-CI) | ⬜ not started | — |
@@ -132,7 +132,20 @@ limits/metering. See `docs/auth-and-tenancy-design.md`.
   (as the real `claimflow_app` role — cross-tenant read/write denied, fail-closed on unset/empty,
   append-only proven, globals readable) + `rls-guard`. Full gate green: typecheck all; API 134;
   rule-engine 300; shared 6.
-- **6d — per-tenant + per-key rate limiting & usage metering:** pending.
+- **6d — per-tenant + per-key rate limiting & usage metering (this PR, STOP GATE):** migration `025`
+  adds `usage_counters` (metering/billing source) + `rate_limit_policies` (per-tenant/per-principal
+  limit overrides), both **tenant-scoped under the same ENABLE+FORCE RLS model** and picked up by
+  `rls-guard`. A `usage-metering` preHandler — running **after** the tenant plugin binds the context —
+  reads quota + records usage on the **claimflow_app role under RLS** (`getTenantDb`, no privileged
+  cross-tenant access on the request path). Atomic `INSERT … ON CONFLICT … DO UPDATE SET count =
+  count + 1 RETURNING` → correct under concurrency (no double/lost count; proven by a 20-parallel test
+  → exactly 5 allowed, counter = 20). Per-tenant (JWT) and per-API-key/OAuth principal budgets;
+  `429` + `Retry-After` + `X-RateLimit-*` headers; problem+json on public endpoints inherited.
+  **Fails open** on a counter-store error (availability > strict metering; the coarse global per-IP
+  limiter remains the DoS floor). `/metrics` (cross-tenant aggregate, privileged pool) now gated by
+  `METRICS_AUTH_TOKEN` when set. 6c follow-up: `rls-guard` extended to any `tenant_id`-bearing table
+  the app role can **SELECT** (not just writable). Tests: `usage-metering` (headers, 429, concurrency,
+  per-tenant isolation, policy override, public-path skip) + metrics-auth + extended rls-guard.
 
 ### STOP GATES (per the merge policy — I build, you merge)
 OAuth2/identity, Postgres RLS, rate-limiting/quota, anything gating/handling PHI, destructive/breaking

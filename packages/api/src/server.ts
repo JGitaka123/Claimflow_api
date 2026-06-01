@@ -7,6 +7,7 @@ import { loadConfig, type Config } from './config.js';
 import metricsPlugin from './plugins/metrics.js';
 import authPlugin from './plugins/auth.js';
 import tenantPlugin from './plugins/tenant.js';
+import usageMeteringPlugin from './plugins/usage-metering.js';
 import rateLimitPlugin from './plugins/rate-limit.js';
 import errorHandlerPlugin from './plugins/error-handler.js';
 import healthRoutes from './routes/health.js';
@@ -99,6 +100,8 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
   void app.register(metricsPlugin);
   void app.register(authPlugin);
   void app.register(tenantPlugin);
+  // Per-tenant/per-key metering + rate limit — after tenant binds the context.
+  void app.register(usageMeteringPlugin, { config });
   void app.register(errorHandlerPlugin);
 
   void app.register(healthRoutes);

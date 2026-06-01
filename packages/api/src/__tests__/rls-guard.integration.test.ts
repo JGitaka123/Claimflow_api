@@ -143,6 +143,51 @@ integrationDescribe('RLS guard (real Postgres)', () => {
     expect(offenders, `Tables writable by claimflow_app without ENABLE+FORCE RLS + a policy:\n${offenders.join('\n')}`).toEqual([]);
   });
 
+  it('every tenant_id-bearing table the app role can SELECT has ENABLE + FORCE RLS and a policy', async () => {
+    // Broader than the writable check: any table that (a) has a tenant_id column
+    // and (b) the app role can read must be RLS-protected — a SELECT-only tenant
+    // table without RLS would leak cross-tenant reads even though it is not
+    // writable. (6c follow-up.)
+    const readable = await pool!.query<{ table_name: string }>(
+      `SELECT g.table_name
+         FROM information_schema.role_table_grants g
+         JOIN information_schema.columns col
+           ON col.table_schema = g.table_schema
+          AND col.table_name = g.table_name
+          AND col.column_name = 'tenant_id'
+        WHERE g.grantee = 'claimflow_app'
+          AND g.privilege_type = 'SELECT'
+          AND g.table_schema = 'public'
+        GROUP BY g.table_name`,
+    );
+
+    const rls = await pool!.query<RlsRow>(
+      `SELECT c.relname AS tablename,
+              c.relrowsecurity AS rls_enabled,
+              c.relforcerowsecurity AS rls_forced,
+              (SELECT count(*) FROM pg_policy p WHERE p.polrelid = c.oid)::int AS policy_count
+         FROM pg_class c
+         JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relkind = 'r'`,
+    );
+    const rlsByTable = new Map(rls.rows.map((r) => [r.tablename, r]));
+
+    const offenders: string[] = [];
+    for (const { table_name } of readable.rows) {
+      const info = rlsByTable.get(table_name);
+      if (!info || !info.rls_enabled || !info.rls_forced || info.policy_count === 0) {
+        offenders.push(
+          `${table_name} (enabled=${info?.rls_enabled ?? false} forced=${info?.rls_forced ?? false} policies=${info?.policy_count ?? 0})`,
+        );
+      }
+    }
+
+    expect(
+      offenders,
+      `tenant_id tables readable by claimflow_app without ENABLE+FORCE RLS + a policy:\n${offenders.join('\n')}`,
+    ).toEqual([]);
+  });
+
   it('global reference tables are SELECT-only for the app role (no write grants)', async () => {
     const writeGrants = await pool!.query<{ table_name: string; privilege_type: string }>(
       `SELECT table_name, privilege_type

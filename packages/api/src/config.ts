@@ -45,6 +45,13 @@ const baseConfigSchema = z.object({
   SESSION_IDLE_TIMEOUT_MINUTES: z.coerce.number().int().min(1).default(30),
 
   RATE_LIMIT_RPM: z.coerce.number().int().min(1).default(100),
+  // Per-tenant / per-API-key request budget per minute (item 6d). Default applies
+  // unless a rate_limit_policies row overrides it for the tenant or principal.
+  TENANT_RATE_LIMIT_RPM: z.coerce.number().int().min(1).default(600),
+  API_KEY_RATE_LIMIT_RPM: z.coerce.number().int().min(1).default(300),
+  // When set, GET /metrics requires this bearer token (the endpoint serves
+  // cross-tenant aggregates and must not be world-readable in production).
+  METRICS_AUTH_TOKEN: nullableString,
   MAX_UPLOAD_SIZE_MB: z.coerce.number().int().min(1).default(50),
   MAX_PAGES_PER_DOCUMENT: z.coerce.number().int().min(1).default(50),
   MAX_CLAIMS_PER_BATCH: z.coerce.number().int().min(1).max(200).default(200),

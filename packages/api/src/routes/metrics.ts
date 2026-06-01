@@ -1,5 +1,6 @@
+import { timingSafeEqual } from 'node:crypto';
 import fp from 'fastify-plugin';
-import type { FastifyPluginAsync, FastifyBaseLogger } from 'fastify';
+import type { FastifyPluginAsync, FastifyBaseLogger, FastifyRequest } from 'fastify';
 import type { Pool, QueryResultRow } from 'pg';
 import { getPrivilegedPool } from '../db/privileged.js';
 import type { DatabaseMetrics } from '../plugins/metrics.js';
@@ -126,8 +127,28 @@ async function collectDatabaseMetrics(pool: Pool, logger: FastifyBaseLogger): Pr
   return metrics;
 }
 
+function metricsAuthorized(request: FastifyRequest, expected: string | null | undefined): boolean {
+  if (!expected) {
+    return true; // No token configured (dev): endpoint stays open.
+  }
+  const header = request.headers.authorization;
+  const provided = header?.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : null;
+  if (!provided || provided.length !== expected.length) {
+    return false;
+  }
+  return timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
+}
+
 const metricsRoutes: FastifyPluginAsync = async (fastify) => {
-  fastify.get('/metrics', async (_request, reply) => {
+  fastify.get('/metrics', async (request, reply) => {
+    // /metrics serves CROSS-TENANT aggregate counts (no per-tenant rows), so it
+    // runs on the privileged pool. It must not be world-readable in production:
+    // when METRICS_AUTH_TOKEN is set, require it. Counts only, never PHI.
+    if (!metricsAuthorized(request, fastify.config.METRICS_AUTH_TOKEN)) {
+      reply.code(401).header('content-type', 'text/plain; charset=utf-8');
+      return 'unauthorized';
+    }
+
     const pool = getPrivilegedPool(fastify.config);
     const databaseMetrics = await collectDatabaseMetrics(pool, fastify.log);
     const payload = fastify.metricsRegistry.render(databaseMetrics);
