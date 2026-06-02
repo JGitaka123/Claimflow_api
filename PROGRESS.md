@@ -16,7 +16,8 @@ Status legend: ✅ done · 🟡 in progress · ⛔ blocked · ⬜ not started
 | 6a | Tenant-scoped API keys (machine auth) | ✅ done | #7 (merged) |
 | 6b | OAuth2 client-credentials | ✅ done | #9 (merged) |
 | 6c | Postgres Row-Level Security | ✅ done | #11 (merged) |
-| 6d | Per-tenant + per-key rate limiting & metering | 🟡 implemented (STOP GATE) — awaiting your merge | _this PR_ |
+| 6d | Per-tenant + per-key rate limiting & metering | ✅ done | #12 (merged) |
+| 6e | Loud fail-open (metering observability) | 🟡 implemented — awaiting your merge | _this PR_ |
 | 7 | Observability + ops + usage metering | ⬜ not started | — |
 | 8 | Developer experience: interactive docs, sandbox, SDKs | ⬜ not started — **OpenAPI 3.1 spec + CI sync check authored first** | — |
 | 9 | Compliance scaffolding (audit-log immutability, retention, DPA-2019, no-PHI-in-CI) | ⬜ not started | — |

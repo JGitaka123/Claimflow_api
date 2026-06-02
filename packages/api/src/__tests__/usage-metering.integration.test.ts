@@ -234,4 +234,37 @@ integrationDescribe('Usage metering + per-tenant rate limiting (real Postgres, a
     );
     expect(counter.rows[0]?.count).toBe('0');
   });
+
+  it('fails open LOUDLY when the counter store errors: allows the request, records a drop, bumps the metric', async () => {
+    const s = await seed(pool!);
+
+    // Simulate a counter-store outage for the app role by revoking its access to
+    // usage_counters. The metering write will fail; the request must still pass.
+    await pool!.query(`REVOKE INSERT, UPDATE, SELECT ON usage_counters FROM claimflow_app`);
+    try {
+      const res = await app!.inject({ method: 'GET', url: '/v1/claims', headers: { authorization: s.jwt } });
+      // Fail OPEN: request is allowed despite the metering failure.
+      expect(res.statusCode).toBe(200);
+
+      // LOUD: the unmetered request is recorded in usage_drops (privileged pool)
+      // for billing reconciliation.
+      const drops = await pool!.query<{ dropped_count: string }>(
+        `SELECT dropped_count FROM usage_drops WHERE tenant_id = $1::uuid`,
+        [s.tenantId],
+      );
+      expect(Number(drops.rows[0]?.dropped_count)).toBeGreaterThanOrEqual(1);
+
+      // LOUD: the Prometheus fail-open counter is non-zero at /metrics.
+      const metrics = await app!.inject({ method: 'GET', url: '/metrics' });
+      expect(metrics.statusCode).toBe(200);
+      const line = metrics.body
+        .split('\n')
+        .find((l) => l.startsWith('claimflow_metering_fail_open_total '));
+      expect(line).toBeDefined();
+      expect(Number(line!.split(' ')[1])).toBeGreaterThanOrEqual(1);
+    } finally {
+      // Restore grants so later tests (and re-runs) are unaffected.
+      await pool!.query(`GRANT INSERT, UPDATE, SELECT ON usage_counters TO claimflow_app`);
+    }
+  });
 });

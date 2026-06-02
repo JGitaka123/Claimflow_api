@@ -35,6 +35,7 @@ const PRIVILEGED_POOL_ALLOWLIST = new Set([
   'routes/audit.ts', // constructs the background JobQueue (workers bind tenant per job)
   'routes/metrics.ts', // deliberately cross-tenant aggregate counts (no PHI rows)
   'jobs/setup.ts', // background workers: bind their own per-job tenant context
+  'plugins/usage-metering.ts', // fail-open drop telemetry only (error path; counts, no PHI)
 ]);
 
 // getAdminPool is migration/test-harness only and must never appear in app code.
