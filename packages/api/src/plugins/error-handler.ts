@@ -4,10 +4,17 @@ import { ZodError } from 'zod';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import type { ApiErrorDetail, ApiErrorResponse } from '@claimflow/shared';
 
-// Public endpoints that return RFC 7807 application/problem+json errors instead of
-// the internal { data, meta, errors } envelope. Scoped narrowly so the existing
-// web frontend and internal routes are unaffected.
-const PROBLEM_JSON_PREFIXES = ['/v1/claims/score', '/v1/oauth/token'];
+// External integrators (machine credentials) must get ONE consistent error shape
+// on every endpoint they call. We therefore return RFC 7807 application/problem+json
+// whenever EITHER:
+//   - the caller is a machine credential (API key or OAuth client — request.apiKey
+//     is set for both), regardless of which endpoint they hit; OR
+//   - the request is to a public machine endpoint that has no human-session caller
+//     (the scoring + oauth-token endpoints, which authenticate inside the handler).
+// Human JWT sessions (the internal web app) keep the { data, meta, errors } envelope.
+// The Problem body is a strict SUPERSET of the envelope (it also carries errors[]
+// and meta.requestId), so existing envelope readers keep working.
+const PUBLIC_MACHINE_PREFIXES = ['/v1/claims/score', '/v1/oauth/token'];
 
 function requestPath(request: FastifyRequest): string {
   const rawUrl = request.raw.url ?? request.url ?? '/';
@@ -15,8 +22,11 @@ function requestPath(request: FastifyRequest): string {
 }
 
 function wantsProblemJson(request: FastifyRequest): boolean {
+  if (request.apiKey) {
+    return true;
+  }
   const path = requestPath(request);
-  return PROBLEM_JSON_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+  return PUBLIC_MACHINE_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
 }
 
 const PROBLEM_TITLES: Partial<Record<ErrorCode, string>> = {
@@ -56,6 +66,9 @@ function sendProblem(
       detail: primary?.message ?? 'Request failed',
       code,
       instance: requestPath(request),
+      // Superset of the envelope: keep meta.requestId + errors[] so existing
+      // envelope readers (web app, tests) work against problem+json unchanged.
+      meta: { requestId: request.id },
       ...(details.length > 0
         ? {
             errors: details.map((detail) => ({
