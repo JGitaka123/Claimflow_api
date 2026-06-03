@@ -182,6 +182,51 @@ integrationDescribe('API keys integration (real Postgres)', () => {
     expect(forbidden.statusCode).toBe(403);
   });
 
+  it('returns ONE error format (problem+json) to a machine credential on every endpoint', async () => {
+    const s = await seed(pool!);
+    const key = await createKey(app!, s, ['claim:create']);
+
+    // A validation error on /v1/claims (non-score endpoint) — machine caller.
+    const badCreate = await app!.inject({
+      method: 'POST',
+      url: '/v1/claims',
+      headers: { 'x-api-key': key },
+      payload: { facilityId: 'not-a-uuid' },
+    });
+    expect(badCreate.statusCode).toBe(400);
+    expect(badCreate.headers['content-type']).toContain('application/problem+json');
+    const problem = badCreate.json() as { type: string; status: number; errors?: unknown[]; meta?: { requestId?: string } };
+    expect(problem.type).toContain('problems/');
+    expect(problem.status).toBe(400);
+    // Superset: still carries errors[] + meta.requestId for envelope-style readers.
+    expect(Array.isArray(problem.errors)).toBe(true);
+    expect(problem.meta?.requestId).toBeTruthy();
+
+    // An out-of-scope 403 is also problem+json for the machine caller.
+    const forbidden = await app!.inject({
+      method: 'GET',
+      url: '/v1/api-keys',
+      headers: { 'x-api-key': key },
+    });
+    expect(forbidden.statusCode).toBe(403);
+    expect(forbidden.headers['content-type']).toContain('application/problem+json');
+  });
+
+  it('human JWT sessions keep the { errors, meta } envelope (unchanged)', async () => {
+    const s = await seed(pool!);
+    const badCreate = await app!.inject({
+      method: 'POST',
+      url: '/v1/claims',
+      headers: { authorization: s.jwt },
+      payload: { facilityId: 'not-a-uuid' },
+    });
+    expect(badCreate.statusCode).toBe(400);
+    expect(badCreate.headers['content-type']).toContain('application/json');
+    expect(badCreate.headers['content-type']).not.toContain('problem');
+    const envelope = badCreate.json() as { errors?: unknown[] };
+    expect(Array.isArray(envelope.errors)).toBe(true);
+  });
+
   it('accepts the key via Authorization: Bearer as well', async () => {
     const s = await seed(pool!);
     const key = await createKey(app!, s, ['claim:create']);

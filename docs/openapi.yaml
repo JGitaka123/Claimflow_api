@@ -9,10 +9,17 @@ info:
     server registers appears here (and vice versa) and validates representative
     response payloads against these schemas, so code↔spec divergence fails the build.
 
-    ## Response envelopes
-    - **Internal/standard endpoints** return `{ data, meta?, errors? }` (see `Envelope*`).
-    - **Public machine endpoints** (`POST /v1/claims/score`, `POST /v1/oauth/token`)
-      return RFC 7807 `application/problem+json` on error (see `Problem`).
+    ## Response envelopes & error format
+    - Success responses use the `{ data, meta? }` envelope (or a raw token/binary
+      body where noted).
+    - **Error format is keyed off the caller, so an integrator gets ONE shape on
+      every endpoint:** machine credentials (API key or OAuth client) and the
+      public machine endpoints (`/v1/claims/score`, `/v1/oauth/token`) receive
+      RFC 7807 `application/problem+json`; human JWT sessions receive the
+      `{ errors, meta }` envelope. The `Problem` body is a strict **superset** of
+      the envelope (it also carries `errors[]` and `meta.requestId`), so a client
+      written against either shape works. Error responses below are documented as
+      `Problem`; envelope clients read the same `errors[]`/`meta`.
 
     ## Integrity
     The scoring response exposes **risk level, recommended action, public flags
@@ -906,10 +913,16 @@ components:
 
   responses:
     EnvelopeError:
-      description: Error in the standard `{ errors, meta }` envelope
+      description: >-
+        Error. Machine credentials (API key / OAuth) receive
+        `application/problem+json`; human JWT sessions receive the
+        `{ errors, meta }` envelope. The problem body is a superset (also carries
+        `errors[]` + `meta.requestId`).
       content:
         application/json:
           schema: { $ref: "#/components/schemas/EnvelopeErrorBody" }
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
 
   schemas:
     # ---- envelope primitives ----
@@ -951,7 +964,10 @@ components:
         meta: { $ref: "#/components/schemas/Meta" }
     Problem:
       type: object
-      description: RFC 7807 problem+json (public endpoints)
+      description: >-
+        RFC 7807 problem+json. Returned to machine credentials on any endpoint and
+        on the public machine endpoints. Strict superset of the envelope: also
+        carries meta.requestId and errors[].
       required: [type, title, status]
       properties:
         type: { type: string }
@@ -960,6 +976,7 @@ components:
         detail: { type: string }
         code: { type: string }
         instance: { type: string }
+        meta: { $ref: "#/components/schemas/Meta" }
         errors:
           type: array
           items: { $ref: "#/components/schemas/ApiErrorDetail" }
