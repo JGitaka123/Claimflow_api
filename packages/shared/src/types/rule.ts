@@ -115,3 +115,43 @@ export interface Rulepack {
   rulesByCategory: Map<RuleCategory, RulepackRule[]>;
   ruleById: Map<string, RulepackRule>;
 }
+
+// ============================================================================
+// AUDIT VIEWS — public-safe projection vs internal full detail (PR-B)
+// ----------------------------------------------------------------------------
+// AuditSummary is the CUSTOMER-FACING projection of an audit session. It exposes
+// reason codes, category, severity, public messages, typology, decision and
+// counts ONLY. It deliberately omits rule internals — `evidence`,
+// `deterministicScore`, `mlQualityScore`, `fixReportMd` — which are detection IP /
+// PHI-adjacent and are served only on the platform-staff `/internal` endpoints.
+// ============================================================================
+
+/** A single public-safe finding in an audit summary (no evidence / internals). */
+export interface AuditSummaryFinding {
+  ruleId: string;
+  category: RuleCategory;
+  severity: RuleSeverity;
+  result: RuleResultStatus;
+  /** Short public message — no thresholds, params, or evidence. */
+  message: string;
+  /** SHA Auditor-General typology; null until the authoritative mapping is supplied. */
+  auditorGeneralTypology: string | null;
+}
+
+/** Public-safe audit summary. Closed shape — must never carry rule internals. */
+export interface AuditSummary {
+  auditId: string;
+  claimId: string;
+  payer: { slug: string | null; name: string | null };
+  decision: AuditDecision | null;
+  totalRules: number;
+  passedCount: number;
+  failedCount: number;
+  warningCount: number;
+  incompleteCount: number;
+  skippedCount: number;
+  rulepackVersion: string;
+  startedAt: string;
+  completedAt: string | null;
+  findings: AuditSummaryFinding[];
+}

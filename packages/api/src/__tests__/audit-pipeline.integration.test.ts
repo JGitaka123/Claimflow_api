@@ -1,6 +1,6 @@
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { readdir, readFile, mkdir, rm } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -47,6 +47,20 @@ function createAuthHeader(context: { tenantId: string; facilityId: string; userI
   ).toString('base64url');
 
   return `Bearer ${header}.${payload}.signature`;
+}
+
+/** Insert an api_keys row directly and return the plaintext `cf_<prefix>_<secret>`. */
+async function insertApiKey(pool: Pool, seed: SeedContext, scopes: string[]): Promise<string> {
+  const prefix = randomBytes(4).toString('hex');
+  const secret = randomBytes(24).toString('hex');
+  const fullKey = `cf_${prefix}_${secret}`;
+  const keyHash = createHash('sha256').update(fullKey).digest('hex');
+  await pool.query(
+    `INSERT INTO api_keys (tenant_id, name, key_prefix, key_hash, scopes, created_by)
+     VALUES ($1::uuid, $2, $3, $4, $5::text[], $6::uuid)`,
+    [seed.tenantId, 'audit-internal-test', prefix, keyHash, scopes, seed.userId],
+  );
+  return fullKey;
 }
 
 async function readJsonBody(request: IncomingMessage): Promise<Record<string, unknown>> {
@@ -569,27 +583,51 @@ integrationDescribe('Audit pipeline integration (real Postgres + ML stub)', () =
 
     expect(Number.parseInt(auditTrail.rows[0]?.count ?? '0', 10)).toBe(1);
 
+    const auditId = auditBody.data.auditSession.id;
+
+    // PUBLIC projected endpoint: returns AuditSummary (auditId, findings, counts),
+    // and must NOT carry the four rule internals.
     const latest = await app!.inject({
       method: 'GET',
       url: `/v1/claims/${claimId}/audit/latest`,
-      headers: {
-        authorization: seed.authHeader,
-      },
+      headers: { authorization: seed.authHeader },
     });
-
     expect(latest.statusCode).toBe(200);
-    const latestBody = latest.json() as { data: { auditSession: { id: string } } };
-    expect(latestBody.data.auditSession.id).toBe(auditBody.data.auditSession.id);
+    const latestBody = latest.json() as { data: Record<string, unknown> };
+    expect(latestBody.data.auditId).toBe(auditId);
+    const latestStr = JSON.stringify(latestBody);
+    for (const internal of ['evidence', 'deterministicScore', 'mlQualityScore', 'fixReportMd', 'auditSession']) {
+      expect(latestStr, `projected summary must not leak ${internal}`).not.toContain(internal);
+    }
 
     const byId = await app!.inject({
       method: 'GET',
-      url: `/v1/audits/${auditBody.data.auditSession.id}`,
-      headers: {
-        authorization: seed.authHeader,
-      },
+      url: `/v1/audits/${auditId}`,
+      headers: { authorization: seed.authHeader },
     });
-
     expect(byId.statusCode).toBe(200);
+    expect((byId.json() as { data: { auditId: string } }).data.auditId).toBe(auditId);
+
+    // INTERNAL endpoint (human session): full detail with rule internals present.
+    const internal = await app!.inject({
+      method: 'GET',
+      url: `/v1/audits/${auditId}/internal`,
+      headers: { authorization: seed.authHeader },
+    });
+    expect(internal.statusCode).toBe(200);
+    const internalBody = internal.json() as { data: { auditSession: { deterministicScore: unknown } } };
+    expect(internalBody.data.auditSession).toBeDefined();
+    expect(internalBody.data.auditSession).toHaveProperty('deterministicScore');
+
+    // INTERNAL endpoint is DENIED to a machine credential (API key) — even one
+    // with audit-related scopes — so no external integrator can read internals.
+    const apiKey = await insertApiKey(pool!, seed, ['audit:trigger', 'claim:create']);
+    const internalViaKey = await app!.inject({
+      method: 'GET',
+      url: `/v1/audits/${auditId}/internal`,
+      headers: { 'x-api-key': apiKey },
+    });
+    expect(internalViaKey.statusCode).toBe(403);
   });
 
   it('audit on claim with no documents returns 422', async () => {

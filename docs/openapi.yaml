@@ -337,9 +337,31 @@ paths:
     get:
       tags: [Audit]
       operationId: latestAudit
-      summary: Latest audit session for a claim
+      summary: Latest audit summary for a claim (public-safe projection)
+      description: >-
+        Public-safe AuditSummary — reason codes, category, severity, decision,
+        typology and counts only. Rule internals (evidence, deterministic/ML
+        scores, fix report) are NOT included. Requires the `audit:read` permission.
       responses:
-        "200": { description: Latest audit, content: { application/json: { schema: { $ref: "#/components/schemas/EnvelopeObject" } } } }
+        "200":
+          description: Public-safe audit summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeAuditSummary" }
+        "404": { $ref: "#/components/responses/EnvelopeError" }
+  /v1/claims/{claimId}/audit/latest/internal:
+    parameters: [ { $ref: "#/components/parameters/ClaimId" } ]
+    get:
+      tags: [Audit]
+      operationId: latestAuditInternal
+      summary: Latest audit FULL detail (human staff only; not for integrations)
+      description: >-
+        Full audit detail including rule internals (evidence, deterministic/ML
+        scores, fix report). Restricted to interactive human sessions — API keys
+        and OAuth clients are denied (403). Used by the first-party dashboard.
+      responses:
+        "200": { description: Full audit detail, content: { application/json: { schema: { $ref: "#/components/schemas/EnvelopeObject" } } } }
+        "403": { $ref: "#/components/responses/EnvelopeError" }
         "404": { $ref: "#/components/responses/EnvelopeError" }
   /v1/claims/{claimId}/override:
     parameters: [ { $ref: "#/components/parameters/ClaimId" } ]
@@ -825,9 +847,28 @@ paths:
     get:
       tags: [Audit]
       operationId: getAudit
-      summary: Get an audit session by id
+      summary: Get an audit summary by id (public-safe projection)
+      description: >-
+        Public-safe AuditSummary (no rule internals). Requires `audit:read`.
       responses:
-        "200": { description: Audit session, content: { application/json: { schema: { $ref: "#/components/schemas/EnvelopeObject" } } } }
+        "200":
+          description: Public-safe audit summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeAuditSummary" }
+        "404": { $ref: "#/components/responses/EnvelopeError" }
+  /v1/audits/{auditId}/internal:
+    parameters: [ { in: path, name: auditId, required: true, schema: { type: string, format: uuid } } ]
+    get:
+      tags: [Audit]
+      operationId: getAuditInternal
+      summary: Get audit FULL detail by id (human staff only; not for integrations)
+      description: >-
+        Full audit detail incl. rule internals. Interactive human sessions only —
+        API keys / OAuth clients are denied (403).
+      responses:
+        "200": { description: Full audit detail, content: { application/json: { schema: { $ref: "#/components/schemas/EnvelopeObject" } } } }
+        "403": { $ref: "#/components/responses/EnvelopeError" }
         "404": { $ref: "#/components/responses/EnvelopeError" }
 
   # ---------------------------------------------------------------- Dashboard
@@ -1243,6 +1284,54 @@ components:
       required: [data]
       properties:
         data: { $ref: "#/components/schemas/ClaimScoreResult" }
+        meta: { $ref: "#/components/schemas/Meta" }
+
+    # ---- audit summary (public-safe projection; CLOSED, no rule internals) ----
+    AuditSummaryFinding:
+      type: object
+      description: Public-safe finding. Reason code + category + severity + message ONLY.
+      required: [ruleId, category, severity, result, message]
+      properties:
+        ruleId: { type: string }
+        category: { type: string }
+        severity: { type: string }
+        result: { type: string }
+        message: { type: string, description: "Short public message — no thresholds/evidence" }
+        auditorGeneralTypology: { type: [string, "null"] }
+      additionalProperties: false
+    AuditSummary:
+      type: object
+      description: >-
+        Public-safe audit summary. Closed shape — exposes reason codes, category,
+        severity, decision, typology and counts only. Never carries evidence,
+        deterministicScore, mlQualityScore, or fixReportMd (served only on the
+        human-session /internal endpoints).
+      required: [auditId, claimId, decision, totalRules, findings]
+      properties:
+        auditId: { type: string, format: uuid }
+        claimId: { type: string, format: uuid }
+        payer:
+          type: object
+          properties:
+            slug: { type: [string, "null"] }
+            name: { type: [string, "null"] }
+        decision: { type: [string, "null"] }
+        totalRules: { type: integer }
+        passedCount: { type: integer }
+        failedCount: { type: integer }
+        warningCount: { type: integer }
+        incompleteCount: { type: integer }
+        skippedCount: { type: integer }
+        rulepackVersion: { type: string }
+        startedAt: { type: string }
+        completedAt: { type: [string, "null"] }
+        findings: { type: array, items: { $ref: "#/components/schemas/AuditSummaryFinding" } }
+      additionalProperties: false
+    EnvelopeAuditSummary:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/AuditSummary" }
         meta: { $ref: "#/components/schemas/Meta" }
 
     # ---- extraction / cases / preauth / webhooks ----

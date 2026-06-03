@@ -229,7 +229,10 @@ export default function AuditWorkspacePage(): JSX.Element {
     retry: false,
     queryFn: async () => {
       try {
-        return (await apiClient.get<AuditResult>(`/v1/claims/${claimId}/audit/latest`)).data;
+        // The dashboard's remediation UI needs full audit detail (evidence drives
+        // the jump-to-failing-field flow), so it uses the human-session /internal
+        // endpoint. The public /audit/latest returns the projected, public-safe view.
+        return (await apiClient.get<AuditResult>(`/v1/claims/${claimId}/audit/latest/internal`)).data;
       } catch (error) {
         if (error instanceof ApiClientError && error.status === 404) {
           return null;
