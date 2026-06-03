@@ -55,15 +55,40 @@ external/tenant integrator credential.
 > public serializer entirely.
 
 ## Auth additions (shared)
-- New `Permission` values: `audit:read` (projected; **added** to
-  `API_KEY_SCOPES`/OAuth scopes so integrators can opt in to the safe view) and
-  `audit:read:internal` (full; **NOT** added to the machine-scope vocabulary).
-- `ROLE_PERMISSIONS`: grant `audit:read` to claims-officer+; grant
-  `audit:read:internal` only to internal roles (supervisor/admin/auditor/super-admin
-  — to be confirmed in review).
-- The public endpoints switch from `requireRole(...)` to
-  `requirePermission('audit:read')` so machine access is **explicit + scoped**, not
-  an implicit role side-effect.
+- New `Permission` values: `audit:read` (projected) and `audit:read:internal` (full).
+  **Neither is added to `API_KEY_SCOPES`/OAuth scopes** — Decision 3: `audit:read`
+  stays **staff-only for now** (not a machine scope yet), so `AuditSummary` is a
+  ready customer-facing view we can expose later by a one-line flip, not a redesign.
+- The public projected endpoints switch from `requireRole(...)` to
+  `requirePermission('audit:read')` so access is explicit; `audit:read` is granted
+  to staff roles via `ROLE_PERMISSIONS` (claims-officer+).
+
+### Decision 2 — `audit:read:internal` gated on PLATFORM STAFF, not tenant role
+**Role/tenant model (verified):** every `users` row is `tenant_id`-scoped (no global
+users); roles are a flat enum on the row; a **tenant admin** (`requireRole(admin) +
+user:manage`, tenant-scoped) can assign `auditor`/`supervisor`/`admin` to its own
+users (only `super_admin` assignment is gated, and even super_admin is created within
+a tenant). **So supervisor/admin/auditor/super_admin are all tenant-assignable** — a
+customer admin could mint a user holding any of them. Gating `audit:read:internal` on
+any current role would therefore **re-leak** internals to the customer.
+
+There is no platform-staff distinction today, so PR-B introduces one, independent of
+tenant role:
+- Migration: add **`users.is_platform_staff BOOLEAN NOT NULL DEFAULT false`**;
+  surface it into the auth context / token claims.
+- New guard **`requirePlatformStaff()`** authorizes purely on `is_platform_staff = true`,
+  ignoring `role`. The `/internal` endpoints use `requirePlatformStaff()` (+ the
+  `audit:read:internal` permission for clarity), never a role check.
+- **The tenant-facing admin user create/update path never accepts or writes
+  `is_platform_staff`** (the Zod bodies omit it; the SQL never sets it) — so no tenant
+  admin can grant it. It is set only via a privileged/seed/ops path (e.g. a migration
+  or a super-admin-platform tool), out of reach of the tenant API.
+- `audit:read:internal` remains excluded from the machine-scope vocabulary, so API
+  keys / OAuth clients can never hold it regardless of the flag.
+
+Net: `/internal` (full evidence/scores/fix-report) is reachable ONLY by a ClaimFlow
+platform-staff user — structurally unreachable by any tenant user (any role) and any
+machine credential. The customer-facing path is the closed `AuditSummary` only.
 
 ## OpenAPI + drift test
 - `openapi.yaml`: model `AuditSummary` as a **closed** schema (public endpoints);
@@ -87,14 +112,15 @@ the `/internal` endpoints. That keeps staff functionality intact while the publi
 endpoints become safe. (Verified the web app calls these; the repoint is part of
 PR-B.)
 
-## Open decisions for your review
-1. Approve **two-representation** approach (public projected default + restricted
-   `/internal` full).
-2. Confirm which roles get `audit:read:internal` (proposed: supervisor, admin,
-   auditor, super_admin — i.e. internal staff who today see the fix report).
-3. Confirm `audit:read` (projected) is acceptable to add to the machine-scope
-   vocabulary so integrators can pull the safe audit summary, or whether audit
-   summaries should stay staff-only for now (then `audit:read` is role-only and no
-   machine scope is added).
+## Decisions (APPROVED)
+1. **Two representations** — public projected default + restricted `/internal` full. ✅
+2. **`audit:read:internal` gated on a platform-staff flag, not tenant role** (the
+   role/tenant model makes supervisor/admin/auditor/super_admin tenant-assignable;
+   gating on them would re-leak). New `users.is_platform_staff` + `requirePlatformStaff()`.
+   ✅ (see "Decision 2" above).
+3. **`audit:read` stays staff-only for now** — NOT a machine scope. `AuditSummary` is
+   kept as the ready, closed, customer-facing view so exposing it later is a flip. ✅
 
-On approval I implement PR-B, then proceed to item 8 (SDKs off the corrected spec).
+Design is final; it folds into the PR-B implementation PR (no separate doc PR).
+Sequence: #15 merges → implement PR-B off main (after #15 lands; both touch
+openapi.yaml) → pause for merge → item 8 (SDKs off the corrected spec).
