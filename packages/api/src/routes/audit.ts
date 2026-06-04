@@ -14,7 +14,7 @@ import { getPrivilegedPool } from '../db/privileged.js';
 import { createJobQueue } from '../jobs/setup.js';
 import { createAuditPipelineService, toAuditSummary } from '../workflows/audit-pipeline.js';
 import { createStateMachineWorkflow } from '../workflows/state-machine.js';
-import { requirePermission, requireHumanSession, requireRole, requireStepUpMfa } from '../plugins/auth.js';
+import { requirePermission, requireRole, requireStepUpMfa } from '../plugins/auth.js';
 
 const ClaimIdParamsSchema = z.object({
   claimId: z.string().uuid(),
@@ -235,9 +235,12 @@ const auditRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send(download.stream);
   });
 
-  // Public, projected (PUBLIC-SAFE): reason codes / typology / severity /
-  // decision / counts only. The four rule internals are dropped by toAuditSummary.
-  // Gated by audit:read (staff-only permission; not a machine scope).
+  // Customer-facing audit summary. Carries per-finding justification (message,
+  // remediation, evidence) the dashboard needs to action a flag, but NEVER the
+  // three system internals (deterministicScore / mlQualityScore / fixReportMd) —
+  // dropped by toAuditSummary. Gated by audit:read, which is NOT a machine scope,
+  // so API keys / OAuth clients (external integrators) get 403 and never receive
+  // evidence. There is no full-detail HTTP path; internals stay in engine/DB/logs.
   fastify.get('/v1/claims/:claimId/audit/latest', {
     preHandler: requirePermission('audit:read'),
   }, async (request, reply) => {
@@ -259,29 +262,6 @@ const auditRoutes: FastifyPluginAsync = async (fastify) => {
     });
   });
 
-  // Internal FULL detail (evidence / deterministic + ML scores / fix report):
-  // HUMAN tenant staff only (the first-party dashboard uses evidence to drive its
-  // remediation UI). requireHumanSession denies any API key / OAuth client, so an
-  // external integrator credential can never receive rule internals.
-  fastify.get('/v1/claims/:claimId/audit/latest/internal', {
-    preHandler: requireHumanSession(),
-  }, async (request, reply) => {
-    if (!request.tenant) {
-      throw new DomainError(ErrorCode.UNAUTHORIZED, 'Authentication required');
-    }
-
-    const { claimId } = ClaimIdParamsSchema.parse(request.params);
-    const result = await auditPipeline.getLatestAuditForClaim({
-      claimId,
-      tenantId: request.tenant.tenantId,
-    });
-
-    reply.send({
-      data: result,
-      meta: { requestId: request.id },
-    });
-  });
-
   fastify.get('/v1/audits/:auditId', {
     preHandler: requirePermission('audit:read'),
   }, async (request, reply) => {
@@ -300,26 +280,6 @@ const auditRoutes: FastifyPluginAsync = async (fastify) => {
       meta: {
         requestId: request.id,
       },
-    });
-  });
-
-  // Internal FULL detail for a specific audit — human tenant staff only.
-  fastify.get('/v1/audits/:auditId/internal', {
-    preHandler: requireHumanSession(),
-  }, async (request, reply) => {
-    if (!request.tenant) {
-      throw new DomainError(ErrorCode.UNAUTHORIZED, 'Authentication required');
-    }
-
-    const { auditId } = AuditIdParamsSchema.parse(request.params);
-    const result = await auditPipeline.getAuditById({
-      auditId,
-      tenantId: request.tenant.tenantId,
-    });
-
-    reply.send({
-      data: result,
-      meta: { requestId: request.id },
     });
   });
 

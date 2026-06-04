@@ -1,7 +1,42 @@
-# PR-B — Closing the audit-detail rule-internal leak (DESIGN)
+# PR-B — Closing the audit-detail rule-internal leak
 
-> **Status: DESIGN — for review. No implementation in this PR.** Sequenced after
-> #15 (error-format consistency) merges, before item 8 (SDKs).
+> **Status: IMPLEMENTED (final design below).** The model evolved twice in review;
+> the FINAL design is a **field-level split**, summarized here first. The earlier
+> credential-split and platform-staff iterations are retained further down for the
+> decision trail.
+
+## FINAL design (implemented) — field-level split
+Facts established in review:
+1. The first-party dashboard is operated by **tenant/hospital staff** (Claims
+   Officer + Supervisor; on-prem in hospitals) — **not** ClaimFlow staff.
+2. The dashboard renders **`evidence` only** (to jump to the failing field /
+   document page). It **never** references `deterministicScore`, `mlQualityScore`,
+   or `fixReportMd` — those were sent over the wire but displayed nowhere.
+3. The four fields are **not equivalent**: `evidence` is claim-level justification a
+   customer legitimately needs to action a flag; the three score/fix-report fields
+   are **system internals** (detection IP) that must not reach a customer.
+
+So the boundary is **field-level, not credential-level**:
+- **`evidence` + `remediation`** stay in the single customer-facing `AuditSummary`
+  (closed schema). The dashboard works on the public endpoint.
+- **`deterministicScore`, `mlQualityScore`, `fixReportMd`** are **dropped from ALL
+  API responses entirely** — they remain in the engine / DB / logs and never leave
+  the server over the API. No `/internal` endpoint exists.
+- The audit endpoints are gated by **`audit:read`**, which is **not** in the machine
+  scope vocabulary, so API keys / OAuth clients (external integrators) get **403** and
+  `evidence` (PHI-adjacent) never reaches a machine credential.
+- `/internal` is therefore **absent from the public OpenAPI spec and SDKs** — no
+  internal field names/structure are published.
+
+This is simpler and strictly safer than the credential-split: there is no
+full-detail HTTP path to leak, and the no-leakage guarantee is enforced by the
+closed `AuditSummary` schema (drift test bans the three internals on every public
+schema and proves a payload carrying them is rejected).
+
+---
+
+## Earlier iterations (decision trail — superseded)
+> **Status: DESIGN — for review.** Sequenced after #15, before item 8 (SDKs).
 
 ## The finding (from the OpenAPI open-object audit)
 `GET /v1/claims/{claimId}/audit/latest` and `GET /v1/audits/{auditId}` return the

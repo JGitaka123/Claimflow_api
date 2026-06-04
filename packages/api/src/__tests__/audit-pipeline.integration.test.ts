@@ -585,19 +585,20 @@ integrationDescribe('Audit pipeline integration (real Postgres + ML stub)', () =
 
     const auditId = auditBody.data.auditSession.id;
 
-    // PUBLIC projected endpoint: returns AuditSummary (auditId, findings, counts),
-    // and must NOT carry the four rule internals.
+    // Audit summary: carries findings (with message/remediation/evidence) but the
+    // three SYSTEM INTERNALS must never appear in the API response.
     const latest = await app!.inject({
       method: 'GET',
       url: `/v1/claims/${claimId}/audit/latest`,
       headers: { authorization: seed.authHeader },
     });
     expect(latest.statusCode).toBe(200);
-    const latestBody = latest.json() as { data: Record<string, unknown> };
+    const latestBody = latest.json() as { data: { auditId: string; findings: unknown[] } };
     expect(latestBody.data.auditId).toBe(auditId);
+    expect(Array.isArray(latestBody.data.findings)).toBe(true);
     const latestStr = JSON.stringify(latestBody);
-    for (const internal of ['evidence', 'deterministicScore', 'mlQualityScore', 'fixReportMd', 'auditSession']) {
-      expect(latestStr, `projected summary must not leak ${internal}`).not.toContain(internal);
+    for (const internal of ['deterministicScore', 'mlQualityScore', 'fixReportMd', 'auditSession']) {
+      expect(latestStr, `audit summary must not leak ${internal}`).not.toContain(internal);
     }
 
     const byId = await app!.inject({
@@ -608,26 +609,15 @@ integrationDescribe('Audit pipeline integration (real Postgres + ML stub)', () =
     expect(byId.statusCode).toBe(200);
     expect((byId.json() as { data: { auditId: string } }).data.auditId).toBe(auditId);
 
-    // INTERNAL endpoint (human session): full detail with rule internals present.
-    const internal = await app!.inject({
-      method: 'GET',
-      url: `/v1/audits/${auditId}/internal`,
-      headers: { authorization: seed.authHeader },
-    });
-    expect(internal.statusCode).toBe(200);
-    const internalBody = internal.json() as { data: { auditSession: { deterministicScore: unknown } } };
-    expect(internalBody.data.auditSession).toBeDefined();
-    expect(internalBody.data.auditSession).toHaveProperty('deterministicScore');
-
-    // INTERNAL endpoint is DENIED to a machine credential (API key) — even one
-    // with audit-related scopes — so no external integrator can read internals.
+    // A machine credential (API key) cannot reach the audit endpoints at all —
+    // audit:read is not a machine scope — so evidence never reaches an integrator.
     const apiKey = await insertApiKey(pool!, seed, ['audit:trigger', 'claim:create']);
-    const internalViaKey = await app!.inject({
+    const viaKey = await app!.inject({
       method: 'GET',
-      url: `/v1/audits/${auditId}/internal`,
+      url: `/v1/audits/${auditId}`,
       headers: { 'x-api-key': apiKey },
     });
-    expect(internalViaKey.statusCode).toBe(403);
+    expect(viaKey.statusCode).toBe(403);
   });
 
   it('audit on claim with no documents returns 422', async () => {

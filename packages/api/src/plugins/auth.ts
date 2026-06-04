@@ -85,26 +85,6 @@ export function requirePermission(permission: Permission) {
   };
 }
 
-/**
- * Authorize ONLY human (interactive) sessions — a JWT login, never a machine
- * credential. This gates the audit /internal endpoints that expose rule internals
- * (evidence, deterministic/ML scores, fix report): tenant staff legitimately use
- * these in the first-party web app, but an API key / OAuth client (the only thing
- * a tenant provisions for EXTERNAL integration) must never receive them. Because a
- * machine credential always sets request.apiKey, this denies every integrator
- * credential while leaving the staff dashboard working.
- */
-export function requireHumanSession() {
-  return async (request: FastifyRequest): Promise<void> => {
-    if (request.apiKey) {
-      throw new DomainError(ErrorCode.FORBIDDEN, 'This endpoint is not available to API keys or OAuth clients');
-    }
-    if (!request.user) {
-      throw new DomainError(ErrorCode.UNAUTHORIZED, 'Authentication required');
-    }
-  };
-}
-
 export function requireStepUpMfa(maxAgeMs = STEP_UP_WINDOW_MS) {
   return async (request: FastifyRequest): Promise<void> => {
     if (!request.user) {

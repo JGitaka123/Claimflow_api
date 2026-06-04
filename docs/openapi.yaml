@@ -337,31 +337,19 @@ paths:
     get:
       tags: [Audit]
       operationId: latestAudit
-      summary: Latest audit summary for a claim (public-safe projection)
+      summary: Latest audit summary for a claim
       description: >-
-        Public-safe AuditSummary — reason codes, category, severity, decision,
-        typology and counts only. Rule internals (evidence, deterministic/ML
-        scores, fix report) are NOT included. Requires the `audit:read` permission.
+        AuditSummary — per-finding message, remediation and evidence (which claim
+        field / document location a flag concerns) plus decision and counts. The
+        three SYSTEM INTERNALS (deterministicScore, mlQualityScore, fixReportMd)
+        are never returned by the API. Requires the `audit:read` permission, which
+        is not a machine scope, so API keys / OAuth clients receive 403.
       responses:
         "200":
-          description: Public-safe audit summary
+          description: Audit summary
           content:
             application/json:
               schema: { $ref: "#/components/schemas/EnvelopeAuditSummary" }
-        "404": { $ref: "#/components/responses/EnvelopeError" }
-  /v1/claims/{claimId}/audit/latest/internal:
-    parameters: [ { $ref: "#/components/parameters/ClaimId" } ]
-    get:
-      tags: [Audit]
-      operationId: latestAuditInternal
-      summary: Latest audit FULL detail (human staff only; not for integrations)
-      description: >-
-        Full audit detail including rule internals (evidence, deterministic/ML
-        scores, fix report). Restricted to interactive human sessions — API keys
-        and OAuth clients are denied (403). Used by the first-party dashboard.
-      responses:
-        "200": { description: Full audit detail, content: { application/json: { schema: { $ref: "#/components/schemas/EnvelopeObject" } } } }
-        "403": { $ref: "#/components/responses/EnvelopeError" }
         "404": { $ref: "#/components/responses/EnvelopeError" }
   /v1/claims/{claimId}/override:
     parameters: [ { $ref: "#/components/parameters/ClaimId" } ]
@@ -847,28 +835,16 @@ paths:
     get:
       tags: [Audit]
       operationId: getAudit
-      summary: Get an audit summary by id (public-safe projection)
+      summary: Get an audit summary by id
       description: >-
-        Public-safe AuditSummary (no rule internals). Requires `audit:read`.
+        AuditSummary (message/remediation/evidence + counts; the three system
+        internals are never returned). Requires `audit:read` (not a machine scope).
       responses:
         "200":
-          description: Public-safe audit summary
+          description: Audit summary
           content:
             application/json:
               schema: { $ref: "#/components/schemas/EnvelopeAuditSummary" }
-        "404": { $ref: "#/components/responses/EnvelopeError" }
-  /v1/audits/{auditId}/internal:
-    parameters: [ { in: path, name: auditId, required: true, schema: { type: string, format: uuid } } ]
-    get:
-      tags: [Audit]
-      operationId: getAuditInternal
-      summary: Get audit FULL detail by id (human staff only; not for integrations)
-      description: >-
-        Full audit detail incl. rule internals. Interactive human sessions only —
-        API keys / OAuth clients are denied (403).
-      responses:
-        "200": { description: Full audit detail, content: { application/json: { schema: { $ref: "#/components/schemas/EnvelopeObject" } } } }
-        "403": { $ref: "#/components/responses/EnvelopeError" }
         "404": { $ref: "#/components/responses/EnvelopeError" }
 
   # ---------------------------------------------------------------- Dashboard
@@ -1289,23 +1265,28 @@ components:
     # ---- audit summary (public-safe projection; CLOSED, no rule internals) ----
     AuditSummaryFinding:
       type: object
-      description: Public-safe finding. Reason code + category + severity + message ONLY.
+      description: >-
+        An audit finding. Carries claim-level justification (message, remediation,
+        evidence — which claim field / document location the flag concerns) but
+        NEVER system internals (deterministicScore / mlQualityScore / fixReportMd).
       required: [ruleId, category, severity, result, message]
       properties:
         ruleId: { type: string }
         category: { type: string }
         severity: { type: string }
         result: { type: string }
-        message: { type: string, description: "Short public message — no thresholds/evidence" }
+        message: { type: string, description: "Short public message — no scores/thresholds" }
+        remediation: { type: [string, "null"], description: "Staff fix-guidance for this finding" }
+        evidence: { type: [object, "null"], description: "Which field / document location the flag concerns", additionalProperties: true }
         auditorGeneralTypology: { type: [string, "null"] }
       additionalProperties: false
     AuditSummary:
       type: object
       description: >-
-        Public-safe audit summary. Closed shape — exposes reason codes, category,
-        severity, decision, typology and counts only. Never carries evidence,
-        deterministicScore, mlQualityScore, or fixReportMd (served only on the
-        human-session /internal endpoints).
+        The customer-facing audit summary. Closed shape. Exposes per-finding
+        message/remediation/evidence + decision + counts. Never carries the three
+        system internals (deterministicScore, mlQualityScore, fixReportMd) — those
+        stay in the engine / DB / logs and are never returned by the API.
       required: [auditId, claimId, decision, totalRules, findings]
       properties:
         auditId: { type: string, format: uuid }

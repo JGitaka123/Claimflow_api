@@ -209,11 +209,13 @@ interface AuditPipelineDependencies {
 }
 
 /**
- * Project a full AuditSessionResult down to the public-safe AuditSummary.
- * Drops the four rule internals (evidence, deterministicScore, mlQualityScore,
- * fixReportMd) and per-rule remediation — they never enter the public path.
- * Used by the customer-facing audit endpoints; the /internal endpoints return
- * the full result to platform staff only.
+ * Project a full AuditSessionResult down to the customer-facing AuditSummary.
+ * Keeps per-finding claim-level justification (message, remediation, evidence)
+ * that the dashboard needs to action a flag, but DROPS the three system internals
+ * — deterministicScore, mlQualityScore, fixReportMd — which are detection IP and
+ * are never rendered by any UI. Those stay in the engine / DB / logs and never
+ * leave the server over the API. This is the ONLY audit representation the API
+ * serves; there is no full-detail HTTP path.
  */
 export function toAuditSummary(
   full: AuditSessionResult,
@@ -240,6 +242,8 @@ export function toAuditSummary(
       severity: r.severity,
       result: r.result,
       message: r.message,
+      remediation: r.remediation,
+      evidence: r.evidence,
       // Typology mapping not yet supplied (build-now/map-later); null for now.
       auditorGeneralTypology: null,
     })),

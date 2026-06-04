@@ -117,28 +117,45 @@ export interface Rulepack {
 }
 
 // ============================================================================
-// AUDIT VIEWS — public-safe projection vs internal full detail (PR-B)
+// AUDIT VIEW — the single customer-facing audit representation (PR-B)
 // ----------------------------------------------------------------------------
-// AuditSummary is the CUSTOMER-FACING projection of an audit session. It exposes
-// reason codes, category, severity, public messages, typology, decision and
-// counts ONLY. It deliberately omits rule internals — `evidence`,
-// `deterministicScore`, `mlQualityScore`, `fixReportMd` — which are detection IP /
-// PHI-adjacent and are served only on the platform-staff `/internal` endpoints.
+// AuditSummary is the ONLY audit representation the API serves. It exposes
+// per-finding claim-level justification a customer needs to action a flag —
+// reason codes, category, severity, public message, remediation guidance, and
+// `evidence` (which field / document page a flag points at, used by the
+// dashboard to jump-to-field). It deliberately OMITS the three SYSTEM INTERNALS
+// — `deterministicScore`, `mlQualityScore`, `fixReportMd` — which are detection
+// IP and are never rendered by any UI; they stay in the engine / DB / logs and
+// never leave the server over the API.
+//
+// Access is gated by the `audit:read` permission, which is NOT in the machine
+// scope vocabulary — so API keys / OAuth clients (external integrators) cannot
+// reach these endpoints at all, and `evidence` (PHI-adjacent) never reaches a
+// machine credential.
 // ============================================================================
 
-/** A single public-safe finding in an audit summary (no evidence / internals). */
+/**
+ * A single audit finding. Public-safe: carries claim-level justification
+ * (message, remediation, evidence) but NEVER system internals (scores / fix
+ * report). `evidence` points at the claim field / document location a flag
+ * concerns; it is served only to human tenant staff via the audit:read gate.
+ */
 export interface AuditSummaryFinding {
   ruleId: string;
   category: RuleCategory;
   severity: RuleSeverity;
   result: RuleResultStatus;
-  /** Short public message — no thresholds, params, or evidence. */
+  /** Short public message — no thresholds, params, or scores. */
   message: string;
+  /** Staff fix-guidance for this finding (not a system score). */
+  remediation: string | null;
+  /** Claim-level justification: which field / document location the flag concerns. */
+  evidence: Record<string, unknown> | null;
   /** SHA Auditor-General typology; null until the authoritative mapping is supplied. */
   auditorGeneralTypology: string | null;
 }
 
-/** Public-safe audit summary. Closed shape — must never carry rule internals. */
+/** The customer-facing audit summary. Closed shape — never carries system internals. */
 export interface AuditSummary {
   auditId: string;
   claimId: string;
