@@ -33,6 +33,7 @@ const PRIVILEGED_POOL_ALLOWLIST = new Set([
   'routes/oauth.ts', // OAuth client verification (pre-tenant-context)
   'routes/api-keys.ts', // API-key management (auth surface)
   'routes/audit.ts', // constructs the background JobQueue (workers bind tenant per job)
+  'routes/claims-batch.ts', // constructs the background JobQueue (workers bind tenant per job)
   'routes/metrics.ts', // deliberately cross-tenant aggregate counts (no PHI rows)
   'jobs/setup.ts', // background workers: bind their own per-job tenant context
   'plugins/usage-metering.ts', // fail-open drop telemetry only (error path; counts, no PHI)

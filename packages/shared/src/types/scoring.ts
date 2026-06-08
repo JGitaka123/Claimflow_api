@@ -53,3 +53,40 @@ export interface ClaimScoreResult {
   flags: ScoreFlag[];
   counts: ClaimScoreCounts;
 }
+
+// ============================================================================
+// ASYNC BATCH SUBMIT + SCORE (POST /v1/claims/batch)
+// ============================================================================
+
+export type ClaimBatchStatus = 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'COMPLETED_WITH_ERRORS' | 'FAILED';
+export type ClaimBatchItemStatus = 'QUEUED' | 'SCORED' | 'FAILED';
+
+/** Result of one claim in a batch. Carries the CLOSED public score only. */
+export interface ClaimBatchItem {
+  index: number;
+  status: ClaimBatchItemStatus;
+  claimId: string | null;
+  /** Public-safe score (no rule internals); present when status = SCORED. */
+  score: ClaimScoreResult | null;
+  /** Problem-style error for a failed item (e.g. invalid FHIR, non-ACTIVE payer). */
+  errorCode: string | null;
+  errorMessage: string | null;
+}
+
+/** 202 response to a batch submission. */
+export interface ClaimBatchAccepted {
+  batchId: string;
+  status: ClaimBatchStatus;
+  totalClaims: number;
+  createdAt: string;
+}
+
+/** GET /v1/claims/batch/:batchId */
+export interface ClaimBatchStatusResult {
+  batchId: string;
+  status: ClaimBatchStatus;
+  totalClaims: number;
+  processedCount: number;
+  createdAt: string;
+  items: ClaimBatchItem[];
+}
