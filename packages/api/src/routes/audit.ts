@@ -12,9 +12,9 @@ import type { FastifyPluginAsync } from 'fastify';
 import { getTenantDb } from '../db/client.js';
 import { getPrivilegedPool } from '../db/privileged.js';
 import { createJobQueue } from '../jobs/setup.js';
-import { createAuditPipelineService } from '../workflows/audit-pipeline.js';
+import { createAuditPipelineService, toAuditSummary } from '../workflows/audit-pipeline.js';
 import { createStateMachineWorkflow } from '../workflows/state-machine.js';
-import { requireRole, requireStepUpMfa } from '../plugins/auth.js';
+import { requirePermission, requireRole, requireStepUpMfa } from '../plugins/auth.js';
 
 const ClaimIdParamsSchema = z.object({
   claimId: z.string().uuid(),
@@ -235,7 +235,15 @@ const auditRoutes: FastifyPluginAsync = async (fastify) => {
     return reply.send(download.stream);
   });
 
-  fastify.get('/v1/claims/:claimId/audit/latest', async (request, reply) => {
+  // Customer-facing audit summary. Carries per-finding justification (message,
+  // remediation, evidence) the dashboard needs to action a flag, but NEVER the
+  // three system internals (deterministicScore / mlQualityScore / fixReportMd) —
+  // dropped by toAuditSummary. Gated by audit:read, which is NOT a machine scope,
+  // so API keys / OAuth clients (external integrators) get 403 and never receive
+  // evidence. There is no full-detail HTTP path; internals stay in engine/DB/logs.
+  fastify.get('/v1/claims/:claimId/audit/latest', {
+    preHandler: requirePermission('audit:read'),
+  }, async (request, reply) => {
     if (!request.tenant) {
       throw new DomainError(ErrorCode.UNAUTHORIZED, 'Authentication required');
     }
@@ -247,14 +255,16 @@ const auditRoutes: FastifyPluginAsync = async (fastify) => {
     });
 
     reply.send({
-      data: result,
+      data: toAuditSummary(result),
       meta: {
         requestId: request.id,
       },
     });
   });
 
-  fastify.get('/v1/audits/:auditId', async (request, reply) => {
+  fastify.get('/v1/audits/:auditId', {
+    preHandler: requirePermission('audit:read'),
+  }, async (request, reply) => {
     if (!request.tenant) {
       throw new DomainError(ErrorCode.UNAUTHORIZED, 'Authentication required');
     }
@@ -266,7 +276,7 @@ const auditRoutes: FastifyPluginAsync = async (fastify) => {
     });
 
     reply.send({
-      data: result,
+      data: toAuditSummary(result),
       meta: {
         requestId: request.id,
       },

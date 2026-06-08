@@ -127,19 +127,29 @@ describe('OpenAPI drift check', () => {
     expect(phantom, `Routes in docs/openapi.yaml with no implementation:\n${phantom.join('\n')}`).toEqual([]);
   });
 
-  it('the scoring response schema exposes no rule internals', () => {
+  it('the public response schemas expose no SYSTEM INTERNALS (scores / fix report / engine params)', () => {
     const schemas = (spec.components?.schemas ?? {}) as AnyObj;
-    const flag = schemas.ScoreFlag as AnyObj;
-    const result = schemas.ClaimScoreResult as AnyObj;
-    // Closed schemas — no room for thresholds/evidence/logic to sneak in.
-    expect(flag.additionalProperties).toBe(false);
-    expect(result.additionalProperties).toBe(false);
-    const banned = ['threshold', 'thresholds', 'evidence', 'ruleDefinition', 'logic', 'params', 'weight', 'modelScore', 'rawScore'];
-    const flagProps = Object.keys(flag.properties ?? {});
-    const resultProps = Object.keys(result.properties ?? {});
-    for (const b of banned) {
-      expect(flagProps, `ScoreFlag must not expose ${b}`).not.toContain(b);
-      expect(resultProps, `ClaimScoreResult must not expose ${b}`).not.toContain(b);
+    const publicSchemas = ['ScoreFlag', 'ClaimScoreResult', 'AuditSummary', 'AuditSummaryFinding'];
+    // The three system internals + engine-config names are banned on EVERY public
+    // schema — they must never leave the server over the API.
+    const bannedEverywhere = [
+      'deterministicScore', 'mlQualityScore', 'fixReportMd',
+      'threshold', 'thresholds', 'ruleDefinition', 'logic', 'params', 'weight', 'modelScore', 'rawScore',
+    ];
+    // `evidence` is claim-level justification: allowed on the audit finding (the
+    // dashboard needs it), but NOT on the scoring schemas (machine-facing, public).
+    const evidenceBannedOn = new Set(['ScoreFlag', 'ClaimScoreResult']);
+    for (const name of publicSchemas) {
+      const schema = schemas[name] as AnyObj;
+      expect(schema, `${name} must exist`).toBeDefined();
+      expect(schema.additionalProperties, `${name} must be a closed schema`).toBe(false);
+      const props = Object.keys(schema.properties ?? {});
+      for (const b of bannedEverywhere) {
+        expect(props, `${name} must not expose ${b}`).not.toContain(b);
+      }
+      if (evidenceBannedOn.has(name)) {
+        expect(props, `${name} must not expose evidence`).not.toContain('evidence');
+      }
     }
   });
 
@@ -178,6 +188,47 @@ describe('OpenAPI drift check', () => {
     const leaky = JSON.parse(JSON.stringify(sample)) as AnyObj;
     leaky.data.flags[0].threshold = 0.85;
     expect(validate(leaky)).toBe(false);
+
+    // AuditSummary: a valid summary carries message/remediation/evidence; a payload
+    // carrying any of the three SYSTEM INTERNALS is rejected by the closed schema.
+    const auditEnvelope = { ...(rewrittenDefs.EnvelopeAuditSummary as AnyObj), $defs: rewrittenDefs };
+    const validateAudit = ajv.compile(auditEnvelope);
+    const auditSample = {
+      data: {
+        auditId: '00000000-0000-0000-0000-000000000002',
+        claimId: '00000000-0000-0000-0000-000000000001',
+        payer: { slug: 'sha', name: 'SHA' },
+        decision: 'WARNING',
+        totalRules: 4,
+        passedCount: 3,
+        failedCount: 0,
+        warningCount: 1,
+        incompleteCount: 0,
+        skippedCount: 0,
+        rulepackVersion: '1.0.0',
+        startedAt: '2026-03-05T00:00:00.000Z',
+        completedAt: '2026-03-05T00:00:01.000Z',
+        findings: [
+          {
+            ruleId: 'FIN-021', category: 'financial', severity: 'WARNING', result: 'WARNING',
+            message: 'x', remediation: 'fix it', evidence: { field: 'patient_sha_id' }, auditorGeneralTypology: null,
+          },
+        ],
+      },
+      meta: { requestId: 'r2' },
+    };
+    expect(validateAudit(auditSample), JSON.stringify(validateAudit.errors)).toBe(true);
+
+    // The three system internals are rejected wherever they appear.
+    const leakSession = JSON.parse(JSON.stringify(auditSample)) as AnyObj;
+    leakSession.data.fixReportMd = '# fix';
+    expect(validateAudit(leakSession)).toBe(false);
+    const leakScore = JSON.parse(JSON.stringify(auditSample)) as AnyObj;
+    leakScore.data.deterministicScore = 0.9;
+    expect(validateAudit(leakScore)).toBe(false);
+    const leakMl = JSON.parse(JSON.stringify(auditSample)) as AnyObj;
+    leakMl.data.findings[0].mlQualityScore = 0.7;
+    expect(validateAudit(leakMl)).toBe(false);
   });
 
   it('documents the security schemes and problem+json contract', () => {

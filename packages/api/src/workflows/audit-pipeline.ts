@@ -10,6 +10,7 @@ import {
   type ClaimType,
   type RuleCategory,
   type RuleSeverity,
+  type AuditSummary,
 } from '@claimflow/shared';
 import {
   loadRulepack,
@@ -205,6 +206,48 @@ export interface AuditSessionResult {
 interface AuditPipelineDependencies {
   mlClient?: MlClient;
   ruleEngine?: RuleEngine;
+}
+
+/**
+ * Project a full AuditSessionResult down to the customer-facing AuditSummary.
+ * Keeps per-finding claim-level justification (message, remediation, evidence)
+ * that the dashboard needs to action a flag, but DROPS the three system internals
+ * — deterministicScore, mlQualityScore, fixReportMd — which are detection IP and
+ * are never rendered by any UI. Those stay in the engine / DB / logs and never
+ * leave the server over the API. This is the ONLY audit representation the API
+ * serves; there is no full-detail HTTP path.
+ */
+export function toAuditSummary(
+  full: AuditSessionResult,
+  payerName: string | null = null,
+): AuditSummary {
+  const s = full.auditSession;
+  return {
+    auditId: s.id,
+    claimId: s.claimId,
+    payer: { slug: s.payerSlug, name: payerName },
+    decision: s.decision,
+    totalRules: s.totalRules,
+    passedCount: s.passedCount,
+    failedCount: s.failedCount,
+    warningCount: s.warningCount,
+    incompleteCount: s.incompleteCount,
+    skippedCount: s.skippedCount,
+    rulepackVersion: s.rulepackVersion,
+    startedAt: s.startedAt,
+    completedAt: s.completedAt,
+    findings: full.ruleResults.map((r) => ({
+      ruleId: r.ruleId,
+      category: r.category,
+      severity: r.severity,
+      result: r.result,
+      message: r.message,
+      remediation: r.remediation,
+      evidence: r.evidence,
+      // Typology mapping not yet supplied (build-now/map-later); null for now.
+      auditorGeneralTypology: null,
+    })),
+  };
 }
 
 function toIso(value: string | Date | null): string | null {

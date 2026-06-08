@@ -337,9 +337,19 @@ paths:
     get:
       tags: [Audit]
       operationId: latestAudit
-      summary: Latest audit session for a claim
+      summary: Latest audit summary for a claim
+      description: >-
+        AuditSummary — per-finding message, remediation and evidence (which claim
+        field / document location a flag concerns) plus decision and counts. The
+        three SYSTEM INTERNALS (deterministicScore, mlQualityScore, fixReportMd)
+        are never returned by the API. Requires the `audit:read` permission, which
+        is not a machine scope, so API keys / OAuth clients receive 403.
       responses:
-        "200": { description: Latest audit, content: { application/json: { schema: { $ref: "#/components/schemas/EnvelopeObject" } } } }
+        "200":
+          description: Audit summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeAuditSummary" }
         "404": { $ref: "#/components/responses/EnvelopeError" }
   /v1/claims/{claimId}/override:
     parameters: [ { $ref: "#/components/parameters/ClaimId" } ]
@@ -825,9 +835,16 @@ paths:
     get:
       tags: [Audit]
       operationId: getAudit
-      summary: Get an audit session by id
+      summary: Get an audit summary by id
+      description: >-
+        AuditSummary (message/remediation/evidence + counts; the three system
+        internals are never returned). Requires `audit:read` (not a machine scope).
       responses:
-        "200": { description: Audit session, content: { application/json: { schema: { $ref: "#/components/schemas/EnvelopeObject" } } } }
+        "200":
+          description: Audit summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeAuditSummary" }
         "404": { $ref: "#/components/responses/EnvelopeError" }
 
   # ---------------------------------------------------------------- Dashboard
@@ -1243,6 +1260,59 @@ components:
       required: [data]
       properties:
         data: { $ref: "#/components/schemas/ClaimScoreResult" }
+        meta: { $ref: "#/components/schemas/Meta" }
+
+    # ---- audit summary (public-safe projection; CLOSED, no rule internals) ----
+    AuditSummaryFinding:
+      type: object
+      description: >-
+        An audit finding. Carries claim-level justification (message, remediation,
+        evidence — which claim field / document location the flag concerns) but
+        NEVER system internals (deterministicScore / mlQualityScore / fixReportMd).
+      required: [ruleId, category, severity, result, message]
+      properties:
+        ruleId: { type: string }
+        category: { type: string }
+        severity: { type: string }
+        result: { type: string }
+        message: { type: string, description: "Short public message — no scores/thresholds" }
+        remediation: { type: [string, "null"], description: "Staff fix-guidance for this finding" }
+        evidence: { type: [object, "null"], description: "Which field / document location the flag concerns", additionalProperties: true }
+        auditorGeneralTypology: { type: [string, "null"] }
+      additionalProperties: false
+    AuditSummary:
+      type: object
+      description: >-
+        The customer-facing audit summary. Closed shape. Exposes per-finding
+        message/remediation/evidence + decision + counts. Never carries the three
+        system internals (deterministicScore, mlQualityScore, fixReportMd) — those
+        stay in the engine / DB / logs and are never returned by the API.
+      required: [auditId, claimId, decision, totalRules, findings]
+      properties:
+        auditId: { type: string, format: uuid }
+        claimId: { type: string, format: uuid }
+        payer:
+          type: object
+          properties:
+            slug: { type: [string, "null"] }
+            name: { type: [string, "null"] }
+        decision: { type: [string, "null"] }
+        totalRules: { type: integer }
+        passedCount: { type: integer }
+        failedCount: { type: integer }
+        warningCount: { type: integer }
+        incompleteCount: { type: integer }
+        skippedCount: { type: integer }
+        rulepackVersion: { type: string }
+        startedAt: { type: string }
+        completedAt: { type: [string, "null"] }
+        findings: { type: array, items: { $ref: "#/components/schemas/AuditSummaryFinding" } }
+      additionalProperties: false
+    EnvelopeAuditSummary:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/AuditSummary" }
         meta: { $ref: "#/components/schemas/Meta" }
 
     # ---- extraction / cases / preauth / webhooks ----

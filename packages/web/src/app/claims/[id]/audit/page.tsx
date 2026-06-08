@@ -51,16 +51,16 @@ type Extraction = {
   fields: Field[];
 };
 
+// Shape of GET /v1/claims/:id/audit/latest (the public-safe AuditSummary). It
+// carries per-finding message / remediation / evidence the dashboard needs, but
+// never the three system internals (deterministic/ML scores, fix report).
 type AuditResult = {
-  auditSession: {
-    rulepackVersion: string;
-    decision: string | null;
-    failedCount: number;
-    warningCount: number;
-    incompleteCount: number;
-  };
-  ruleResults: Array<{
-    id: string;
+  rulepackVersion: string;
+  decision: string | null;
+  failedCount: number;
+  warningCount: number;
+  incompleteCount: number;
+  findings: Array<{
     ruleId: string;
     result: string;
     message: string;
@@ -749,12 +749,12 @@ export default function AuditWorkspacePage(): JSX.Element {
 
   const selectedField = fields.find((f) => f.id === selectedFieldId) ?? null;
 
-  const issuesCritical = (auditQuery.data?.ruleResults ?? []).filter((r) => r.result === 'FAIL');
-  const issuesWarning = (auditQuery.data?.ruleResults ?? []).filter((r) => r.result === 'WARNING' || r.result === 'INCOMPLETE');
-  const passedCount = (auditQuery.data?.ruleResults ?? []).filter((r) => r.result === 'PASS').length;
+  const issuesCritical = (auditQuery.data?.findings ?? []).filter((r) => r.result === 'FAIL');
+  const issuesWarning = (auditQuery.data?.findings ?? []).filter((r) => r.result === 'WARNING' || r.result === 'INCOMPLETE');
+  const passedCount = (auditQuery.data?.findings ?? []).filter((r) => r.result === 'PASS').length;
 
   const jumpIssue = useCallback(
-    (issue: AuditResult['ruleResults'][number]) => {
+    (issue: AuditResult['findings'][number]) => {
       const key = String(issue.evidence?.field ?? issue.evidence?.field_key ?? issue.evidence?.fieldKey ?? '')
         .trim()
         .toLowerCase();
@@ -812,7 +812,7 @@ export default function AuditWorkspacePage(): JSX.Element {
     <main className="mx-auto w-full max-w-[1400px] px-4 py-6">
       <PageHeader
         title={`Audit Workspace - ${claim.id}`}
-        subtitle={`Rulepack ${auditQuery.data?.auditSession.rulepackVersion ?? 'n/a'}`}
+        subtitle={`Rulepack ${auditQuery.data?.rulepackVersion ?? 'n/a'}`}
         breadcrumbs={[
           { label: 'Dashboard', href: '/dashboard' },
           { label: 'Claims', href: '/claims' },
@@ -1015,7 +1015,7 @@ export default function AuditWorkspacePage(): JSX.Element {
             <div className="space-y-2">
               <h4 className="text-sm font-semibold text-red-700">Critical Issues</h4>
               {issuesCritical.length === 0 ? <p className="text-xs text-[var(--muted)]">No critical issues.</p> : issuesCritical.map((issue) => (
-                <button key={issue.id} type="button" className="w-full rounded-lg border border-red-200 bg-red-50 p-2 text-left" onClick={() => jumpIssue(issue)}>
+                <button key={issue.ruleId} type="button" className="w-full rounded-lg border border-red-200 bg-red-50 p-2 text-left" onClick={() => jumpIssue(issue)}>
                   <p className="text-xs font-semibold text-red-800">{issue.ruleId}</p>
                   <div className="mt-1 text-xs text-red-700 [&_p]:m-0 [&_ul]:my-1 [&_ol]:my-1 [&_a]:underline" dangerouslySetInnerHTML={{ __html: renderSafeMarkdown(issue.message) }} />
                   {issue.remediation ? <div className="mt-1 text-[11px] text-red-900 [&_p]:m-0 [&_ul]:my-1 [&_ol]:my-1 [&_a]:underline" dangerouslySetInnerHTML={{ __html: renderSafeMarkdown(`**Fix:** ${issue.remediation}`) }} /> : null}
@@ -1026,7 +1026,7 @@ export default function AuditWorkspacePage(): JSX.Element {
             <div className="space-y-2">
               <h4 className="text-sm font-semibold text-amber-700">Warnings</h4>
               {issuesWarning.length === 0 ? <p className="text-xs text-[var(--muted)]">No warnings.</p> : issuesWarning.map((issue) => (
-                <button key={issue.id} type="button" className="w-full rounded-lg border border-amber-200 bg-amber-50 p-2 text-left" onClick={() => jumpIssue(issue)}>
+                <button key={issue.ruleId} type="button" className="w-full rounded-lg border border-amber-200 bg-amber-50 p-2 text-left" onClick={() => jumpIssue(issue)}>
                   <p className="text-xs font-semibold text-amber-900">{issue.ruleId}</p>
                   <div className="mt-1 text-xs text-amber-800 [&_p]:m-0 [&_ul]:my-1 [&_ol]:my-1 [&_a]:underline" dangerouslySetInnerHTML={{ __html: renderSafeMarkdown(issue.message) }} />
                   {issue.remediation ? <div className="mt-1 text-[11px] text-amber-900 [&_p]:m-0 [&_ul]:my-1 [&_ol]:my-1 [&_a]:underline" dangerouslySetInnerHTML={{ __html: renderSafeMarkdown(`**Fix:** ${issue.remediation}`) }} /> : null}
@@ -1038,11 +1038,11 @@ export default function AuditWorkspacePage(): JSX.Element {
               <h4 className="text-sm font-semibold text-emerald-700">Audit Snapshot</h4>
               {auditQuery.data ? (
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs">
-                  <p>Decision: <span className="font-semibold">{auditQuery.data.auditSession.decision ?? 'UNKNOWN'}</span></p>
-                  <p className="mt-1">Rulepack: {auditQuery.data.auditSession.rulepackVersion}</p>
-                  <p className="mt-1">Failed: {auditQuery.data.auditSession.failedCount}</p>
-                  <p className="mt-1">Warnings: {auditQuery.data.auditSession.warningCount}</p>
-                  <p className="mt-1">Incomplete: {auditQuery.data.auditSession.incompleteCount}</p>
+                  <p>Decision: <span className="font-semibold">{auditQuery.data.decision ?? 'UNKNOWN'}</span></p>
+                  <p className="mt-1">Rulepack: {auditQuery.data.rulepackVersion}</p>
+                  <p className="mt-1">Failed: {auditQuery.data.failedCount}</p>
+                  <p className="mt-1">Warnings: {auditQuery.data.warningCount}</p>
+                  <p className="mt-1">Incomplete: {auditQuery.data.incompleteCount}</p>
                 </div>
               ) : (
                 <p className="text-xs text-[var(--muted)]">No audit session found yet for this claim.</p>
