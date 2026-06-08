@@ -88,5 +88,10 @@ export interface ClaimBatchStatusResult {
   totalClaims: number;
   processedCount: number;
   createdAt: string;
+  updatedAt: string;
+  /** True when a non-terminal batch has made no progress for a while (worker
+   *  crashed/stalled). Surfaced so a stuck batch is visible, not a black hole.
+   *  A retry will resume it; this flags that it currently appears stalled. */
+  stalled: boolean;
   items: ClaimBatchItem[];
 }

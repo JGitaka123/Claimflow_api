@@ -16,7 +16,13 @@ interface BatchRow extends QueryResultRow {
   total_claims: number;
   processed_count: number;
   created_at: string | Date;
+  updated_at: string | Date;
 }
+
+// A non-terminal batch idle longer than this is reported as stalled (worker
+// crashed/expired). pg-boss retries it; this just makes the stall visible.
+const STALL_THRESHOLD_MS = 5 * 60 * 1000;
+const TERMINAL_STATUSES = new Set(['COMPLETED', 'COMPLETED_WITH_ERRORS', 'FAILED']);
 
 interface ItemRow extends QueryResultRow {
   item_index: number;
@@ -123,7 +129,7 @@ export function createClaimBatchService(db: TenantDb): ClaimBatchService {
 
     async getStatus(tenantId, batchId): Promise<ClaimBatchStatusResult> {
       const batchResult = await db.query<BatchRow>(
-        `SELECT id, status, total_claims, processed_count, created_at
+        `SELECT id, status, total_claims, processed_count, created_at, updated_at
            FROM claim_batches WHERE id = $1::uuid AND tenant_id = $2::uuid`,
         [batchId, tenantId],
       );
@@ -148,12 +154,18 @@ export function createClaimBatchService(db: TenantDb): ClaimBatchService {
         errorMessage: row.error_message,
       }));
 
+      const updatedAtMs = (batch.updated_at instanceof Date ? batch.updated_at : new Date(batch.updated_at)).getTime();
+      const status = batch.status as ClaimBatchStatusResult['status'];
+      const stalled = !TERMINAL_STATUSES.has(status) && Date.now() - updatedAtMs > STALL_THRESHOLD_MS;
+
       return {
         batchId: batch.id,
-        status: batch.status as ClaimBatchStatusResult['status'],
+        status,
         totalClaims: batch.total_claims,
         processedCount: batch.processed_count,
         createdAt: toIso(batch.created_at),
+        updatedAt: toIso(batch.updated_at),
+        stalled,
         items,
       };
     },

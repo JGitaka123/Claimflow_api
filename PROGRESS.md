@@ -21,9 +21,10 @@ Status legend: ✅ done · 🟡 in progress · ⛔ blocked · ⬜ not started
 | OAS | OpenAPI 3.1 spec + drift-catching CI check | ✅ done | #14 (merged) |
 | OAS-A | Error-format consistency (problem+json for integrators) | ✅ done | #15 (merged) |
 | OAS-B | Audit-detail leak — field-level split | ✅ done | #16 (merged) |
-| 1 | Async `POST /v1/claims/batch` (bulk submit + score) | 🟡 implemented (STOP GATE) — awaiting your merge | _this PR_ |
+| 1 | Async `POST /v1/claims/batch` (bulk submit + score) | ✅ done | #17 (merged) |
+| 1f | Batch durability + rate-limit amplification fixes | 🟡 implemented (STOP GATE) — _this PR_ | _this PR_ |
 | 8 | Developer experience: SDKs + rendered docs + sandbox (from openapi.yaml) | ✅ done | #19 (merged) |
-| 9 | Compliance scaffolding (audit-log immutability, retention, no-PHI-in-CI, data-handling docs) | 🟡 implemented — auto-merge eligible (legal text = STOP GATE) | _this PR_ |
+| 9 | Compliance scaffolding (audit-log immutability, retention, no-PHI-in-CI, data-handling docs) | 🟡 implemented — auto-merge eligible (legal text = STOP GATE) | #20 (open) |
 | 7 | Observability + ops (dashboards/SLOs on 6d/6e) | ⬜ not started | — |
 
 ## Slice 1 — Async `POST /v1/claims/batch` (this PR, STOP GATE)
@@ -40,7 +41,22 @@ Status legend: ✅ done · 🟡 in progress · ⛔ blocked · ⬜ not started
   no-internals, idempotent replay (one batch), max-size 400, tenant isolation 404, metering increment.
 - STOP GATE: new RLS tables + metering → human-merge, not auto-merge.
 
-## Slice 8 — SDKs + rendered docs + sandbox (this PR)
+## Slice 1f — Batch durability + rate-limit amplification (this PR, STOP GATE)
+Fast-follow from the post-#17 review (3 facts checked; #3 metering-of-successes was already correct):
+- **Durability/resumability:** the worker now processes only still-`QUEUED` items (read from the DB),
+  so a crash/expiry + pg-boss retry RESUMES (no re-scoring, no double-metering); terminal status +
+  `processed_count` are recomputed from the rows, so a batch always converges (no `PROCESSING`
+  black hole). Enqueue sets `retryLimit:5 + retryBackoff + expireInMinutes:30`. `GET batch-status`
+  surfaces `stalled:true` (+ `updatedAt`) when a non-terminal batch has been idle past a threshold.
+- **Rate-limit amplification:** the request-path limiter charges **one unit per claim** for
+  `POST /v1/claims/batch` (a metering `weight`), so a 200-claim batch costs 200 against the
+  per-minute ceiling — consistent across single + bulk, not 1.
+- Tests: resumability (only the QUEUED item scored, others untouched, terminal convergence, only the
+  new claim metered); weighted-limit (3-claim submit → +3 on the `default` counter); stalled flag.
+- Rebased onto current main (post-#19); SDK types regenerated to pick up the new `updatedAt`/`stalled`
+  spec fields so the drift check stays green.
+
+## Slice 8 — SDKs + rendered docs + sandbox (#19, merged)
 Everything is **generated from `docs/openapi.yaml`** (the source of truth) with local, offline
 tooling — no network calls and no LLM at generation or runtime. Design: `docs/sdk-generation-design.md`.
 - **Node/TS SDK** (`packages/sdk-node`, `@claimflow/sdk-node`): `src/generated/types.ts` from

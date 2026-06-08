@@ -35,6 +35,9 @@ export interface MeterParams {
   limit: number;
   /** Window length in ms (fixed window). */
   windowMs: number;
+  /** Units this request consumes (default 1). A bulk endpoint charges N so a
+   *  batch of N claims counts as N against the per-minute budget, not 1. */
+  weight?: number;
   now?: Date;
 }
 
@@ -90,16 +93,17 @@ export function createMeteringService(db: TenantDb): MeteringService {
       const now = params.now ?? new Date();
       const start = windowStart(now, params.windowMs);
       const principal = params.principalId ?? WINDOW_PLACEHOLDER_PRINCIPAL;
+      const weight = Math.max(1, Math.trunc(params.weight ?? 1));
 
-      // Atomic increment + read-back. The unique key (tenant, principal,
+      // Atomic add-of-weight + read-back. The unique key (tenant, principal,
       // route_class, window_start) makes the upsert race-free.
       const result = await db.query<CounterRow>(
         `INSERT INTO usage_counters (tenant_id, principal_id, route_class, window_start, request_count, updated_at)
-         VALUES ($1::uuid, $2, $3, $4::timestamptz, 1, now())
+         VALUES ($1::uuid, $2, $3, $4::timestamptz, $5, now())
          ON CONFLICT (tenant_id, principal_id, route_class, window_start)
-         DO UPDATE SET request_count = usage_counters.request_count + 1, updated_at = now()
+         DO UPDATE SET request_count = usage_counters.request_count + $5, updated_at = now()
          RETURNING request_count`,
-        [params.tenantId, principal, params.routeClass, start.toISOString()],
+        [params.tenantId, principal, params.routeClass, start.toISOString(), weight],
       );
 
       const used = Number.parseInt(result.rows[0]?.request_count ?? '1', 10);
