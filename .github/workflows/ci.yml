@@ -40,6 +40,48 @@ jobs:
       - name: Run workspace tests
         run: pnpm test
 
+  sdk-drift:
+    name: SDK Drift + No-Internals
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install codegen + SDK Python deps
+        # datamodel-code-generator is pinned so the regenerate-and-diff drift
+        # check is reproducible (with --formatters builtin, no black/isort vars).
+        run: pip install "datamodel-code-generator==0.61.0" "pydantic[email]>=2.6" requests pytest
+
+      - name: Regenerate SDKs/docs and assert no drift from openapi.yaml
+        run: bash scripts/generate-sdks.sh --check
+
+      - name: No-internals + client tests (Node SDK)
+        run: pnpm --filter @claimflow/sdk-node test
+
+      - name: Python SDK tests
+        run: cd sdks/python && pytest -q
+
   api-integration:
     name: API Integration (Postgres)
     runs-on: ubuntu-latest
