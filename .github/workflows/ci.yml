@@ -80,7 +80,10 @@ jobs:
         run: pnpm --filter @claimflow/sdk-node test
 
       - name: Python SDK tests
-        run: cd sdks/python && pytest -q
+        # `python -m pytest` (not the bare console script) so it uses the
+        # setup-python interpreter that has the deps, and puts the package dir on
+        # sys.path for `import claimflow`.
+        run: cd sdks/python && python -m pytest -q
 
   api-integration:
     name: API Integration (Postgres)
