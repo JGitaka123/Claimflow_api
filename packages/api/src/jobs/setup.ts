@@ -14,11 +14,13 @@ import { createBatchAuditHandler } from './handlers/batch-audit.js';
 import { createGenerateExportHandler } from './handlers/generate-export.js';
 import { createProcessDocumentHandler } from './handlers/process-document.js';
 import { createRunAuditHandler } from './handlers/run-audit.js';
+import { createProcessClaimBatchHandler } from './handlers/process-claim-batch.js';
 import type {
   BatchAuditFilter,
   BatchAuditJobData,
   BatchAuditProgress,
   BatchJobStatus,
+  ClaimBatchJobData,
   ExportJobProgress,
   ExportJobStatus,
   GenerateExportJobData,
@@ -29,6 +31,7 @@ const PROCESS_DOCUMENT_JOB = 'process-document';
 const RUN_AUDIT_JOB = 'run-audit';
 const BATCH_AUDIT_JOB = 'batch-audit';
 const GENERATE_EXPORT_JOB = 'generate-export';
+const PROCESS_CLAIM_BATCH_JOB = 'process-claim-batch';
 
 const RUN_AUDIT_COMPLETION_STATES = new Set(['completed', 'failed', 'cancelled', 'expired']);
 
@@ -300,6 +303,17 @@ export class JobQueueManager {
       totalClaims: claimIds.length,
       createdAt: new Date().toISOString(),
     };
+  }
+
+  /** Enqueue an async claim-submission batch. The batch + item rows are created
+   *  by the route (under RLS); this just dispatches the worker job. */
+  async enqueueClaimBatch(data: ClaimBatchJobData): Promise<string> {
+    await this.ensureStarted();
+    const jobId = await this.boss.send(PROCESS_CLAIM_BATCH_JOB, data);
+    if (!jobId) {
+      throw new DomainError(ErrorCode.INTERNAL_ERROR, 'Failed to enqueue claim-batch job');
+    }
+    return jobId;
   }
 
   async enqueueGenerateExport(request: GenerateExportRequestInput): Promise<EnqueueGenerateExportResult> {
@@ -706,6 +720,20 @@ export class JobQueueManager {
     await this.boss.work(GENERATE_EXPORT_JOB, async (job) => {
       const data = job.data as GenerateExportJobData;
       return runWithTenant(data.tenantId, () => generateExportHandler({ jobId: job.id, data }));
+    });
+
+    await this.boss.work(PROCESS_CLAIM_BATCH_JOB, async (job) => {
+      const data = job.data as ClaimBatchJobData;
+      // The handler (and its TenantDb) is built INSIDE runWithTenant so every query
+      // runs on the app role with this batch's tenant bound (RLS).
+      return runWithTenant(data.tenantId, () => {
+        const handler = createProcessClaimBatchHandler({
+          logger: this.logger,
+          config: this.config,
+          tenantDb: getTenantDb(this.config),
+        });
+        return handler({ jobId: job.id, data });
+      });
     });
 
     this.workersRegistered = true;

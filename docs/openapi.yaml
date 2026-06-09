@@ -433,6 +433,50 @@ paths:
           description: Payer not adjudicable / conflict (problem+json)
           content:
             application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } }
+  /v1/claims/batch:
+    post:
+      tags: [Scoring]
+      operationId: submitClaimBatch
+      summary: Async bulk submit + score (returns a batch id immediately)
+      description: >-
+        Accepts up to MAX_CLAIMS_PER_BATCH FHIR claims, returns a batch id (202),
+        and scores each asynchronously. Per-claim results surface via the
+        claim.flagged webhook and GET /v1/claims/batch/{batchId}. One malformed
+        claim fails only its item, not the batch. Each scored claim counts toward
+        usage metering. Requires `claim:create`.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BatchSubmitRequest" }
+      responses:
+        "202":
+          description: Batch accepted
+          headers:
+            x-idempotent-replay: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeClaimBatchAccepted" }
+        "400": { $ref: "#/components/responses/EnvelopeError" }
+  /v1/claims/batch/{batchId}:
+    parameters:
+      - { in: path, name: batchId, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Scoring]
+      operationId: getClaimBatch
+      summary: Batch status + per-claim results
+      description: >-
+        Per-claim status and the CLOSED public score (no rule internals) for each
+        item. Tenant-scoped. Requires `claim:create`.
+      responses:
+        "200":
+          description: Batch status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeClaimBatchStatus" }
+        "404": { $ref: "#/components/responses/EnvelopeError" }
 
   # ---------------------------------------------------------------- Documents
   /v1/claims/{claimId}/documents:
@@ -1260,6 +1304,61 @@ components:
       required: [data]
       properties:
         data: { $ref: "#/components/schemas/ClaimScoreResult" }
+        meta: { $ref: "#/components/schemas/Meta" }
+
+    # ---- async batch submit + score ----
+    BatchSubmitRequest:
+      type: object
+      required: [claims]
+      properties:
+        claims:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items: { $ref: "#/components/schemas/ScoreClaimRequest" }
+    ClaimBatchAccepted:
+      type: object
+      required: [batchId, status, totalClaims, createdAt]
+      properties:
+        batchId: { type: string, format: uuid }
+        status: { type: string, enum: [QUEUED, PROCESSING, COMPLETED, COMPLETED_WITH_ERRORS, FAILED] }
+        totalClaims: { type: integer }
+        createdAt: { type: string }
+      additionalProperties: false
+    EnvelopeClaimBatchAccepted:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/ClaimBatchAccepted" }
+        meta: { $ref: "#/components/schemas/Meta" }
+    ClaimBatchItem:
+      type: object
+      description: Per-claim result. Carries the CLOSED public score only (no rule internals).
+      required: [index, status]
+      properties:
+        index: { type: integer }
+        status: { type: string, enum: [QUEUED, SCORED, FAILED] }
+        claimId: { type: [string, "null"], format: uuid }
+        score: { oneOf: [ { $ref: "#/components/schemas/ClaimScoreResult" }, { type: "null" } ] }
+        errorCode: { type: [string, "null"] }
+        errorMessage: { type: [string, "null"] }
+      additionalProperties: false
+    ClaimBatchStatus:
+      type: object
+      required: [batchId, status, totalClaims, processedCount, items]
+      properties:
+        batchId: { type: string, format: uuid }
+        status: { type: string, enum: [QUEUED, PROCESSING, COMPLETED, COMPLETED_WITH_ERRORS, FAILED] }
+        totalClaims: { type: integer }
+        processedCount: { type: integer }
+        createdAt: { type: string }
+        items: { type: array, items: { $ref: "#/components/schemas/ClaimBatchItem" } }
+      additionalProperties: false
+    EnvelopeClaimBatchStatus:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: "#/components/schemas/ClaimBatchStatus" }
         meta: { $ref: "#/components/schemas/Meta" }
 
     # ---- audit summary (public-safe projection; CLOSED, no rule internals) ----

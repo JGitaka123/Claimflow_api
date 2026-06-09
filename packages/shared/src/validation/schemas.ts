@@ -157,6 +157,13 @@ export const ScoreClaimSchema = z.object({
 });
 export type ScoreClaimInput = z.infer<typeof ScoreClaimSchema>;
 
+// Async bulk submit + score. Max size is enforced here (200) and re-checked
+// server-side against MAX_CLAIMS_PER_BATCH. Each item is an independent FHIR claim.
+export const BatchSubmitSchema = z.object({
+  claims: z.array(ScoreClaimSchema).min(1).max(200),
+});
+export type BatchSubmitInput = z.infer<typeof BatchSubmitSchema>;
+
 // --- Claims ---
 
 export const CreateClaimSchema = z.object({

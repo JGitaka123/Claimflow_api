@@ -57,6 +57,15 @@ export interface ProcessDocumentJobData {
   tenantId: string;
 }
 
+/** Async bulk claim submission (POST /v1/claims/batch). The FHIR payloads ride
+ *  on the job; per-item status/results live in claim_batch_items. */
+export interface ClaimBatchJobData {
+  batchId: string;
+  tenantId: string;
+  requestedByUserId: string;
+  claims: import('@claimflow/shared').BatchSubmitInput['claims'];
+}
+
 export interface ExportJobProgress {
   status: BatchJobStatus;
   startedAt: string | null;

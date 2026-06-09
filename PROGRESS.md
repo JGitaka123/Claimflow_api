@@ -20,10 +20,25 @@ Status legend: ✅ done · 🟡 in progress · ⛔ blocked · ⬜ not started
 | 6e | Loud fail-open (metering observability) | ✅ done | #13 (merged) |
 | OAS | OpenAPI 3.1 spec + drift-catching CI check | ✅ done | #14 (merged) |
 | OAS-A | Error-format consistency (problem+json for integrators) | ✅ done | #15 (merged) |
-| OAS-B | Audit-detail projection (close rule-internal leak) | 🟡 implemented (STOP GATE) — awaiting your merge | _this PR_ |
-| 7 | Observability + ops + usage metering | ⬜ not started | — |
-| 8 | Developer experience: interactive docs, sandbox, SDKs | ⬜ not started — **OpenAPI spec landed (OAS); SDK/docs generation gated on its review** | — |
-| 9 | Compliance scaffolding (audit-log immutability, retention, DPA-2019, no-PHI-in-CI) | ⬜ not started | — |
+| OAS-B | Audit-detail leak — field-level split | ✅ done | #16 (merged) |
+| 1 | Async `POST /v1/claims/batch` (bulk submit + score) | 🟡 implemented (STOP GATE) — awaiting your merge | _this PR_ |
+| 8 | Developer experience: SDKs + rendered docs + sandbox (from openapi.yaml) | ⬜ next | — |
+| 9 | Compliance scaffolding (audit-log immutability, retention, no-PHI-in-CI, data-handling docs) | ⬜ not started | — |
+| 7 | Observability + ops (dashboards/SLOs on 6d/6e) | ⬜ not started | — |
+
+## Slice 1 — Async `POST /v1/claims/batch` (this PR, STOP GATE)
+- `POST /v1/claims/batch` (≤200 FHIR claims; `claim:create`; `Idempotency-Key`) → **202** `{ batchId, … }`;
+  scores each claim async. `GET /v1/claims/batch/:batchId` → per-claim status + the **closed**
+  `ClaimScoreResult` (no internals). problem+json for machine callers (inherited).
+- Migration `028`: `claim_batches` + `claim_batch_items`, tenant-scoped under **ENABLE+FORCE RLS**
+  (auto-covered by `rls-guard`); composite FK keeps an item's tenant from diverging from its batch.
+- Worker (`process-claim-batch`) runs under `runWithTenant` (app role, RLS); **per-item try/catch** —
+  one malformed claim → that item `FAILED`, batch `COMPLETED_WITH_ERRORS`, never fails the batch.
+  Each scored claim counts toward **6d usage metering** (route class `batch`). `claim.flagged` fires
+  per scored claim via the existing score path.
+- openapi.yaml updated (drift check green); tests: 202+id, async completion, partial failure,
+  no-internals, idempotent replay (one batch), max-size 400, tenant isolation 404, metering increment.
+- STOP GATE: new RLS tables + metering → human-merge, not auto-merge.
 
 ## Cross-cutting follow-ups / debts
 
