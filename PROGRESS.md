@@ -22,7 +22,7 @@ Status legend: ✅ done · 🟡 in progress · ⛔ blocked · ⬜ not started
 | OAS-A | Error-format consistency (problem+json for integrators) | ✅ done | #15 (merged) |
 | OAS-B | Audit-detail leak — field-level split | ✅ done | #16 (merged) |
 | 1 | Async `POST /v1/claims/batch` (bulk submit + score) | 🟡 implemented (STOP GATE) — awaiting your merge | _this PR_ |
-| 8 | Developer experience: SDKs + rendered docs + sandbox (from openapi.yaml) | ⬜ next | — |
+| 8 | Developer experience: SDKs + rendered docs + sandbox (from openapi.yaml) | 🟡 implemented — auto-merge eligible (publish = STOP GATE) | _this PR_ |
 | 9 | Compliance scaffolding (audit-log immutability, retention, no-PHI-in-CI, data-handling docs) | ⬜ not started | — |
 | 7 | Observability + ops (dashboards/SLOs on 6d/6e) | ⬜ not started | — |
 
@@ -39,6 +39,35 @@ Status legend: ✅ done · 🟡 in progress · ⛔ blocked · ⬜ not started
 - openapi.yaml updated (drift check green); tests: 202+id, async completion, partial failure,
   no-internals, idempotent replay (one batch), max-size 400, tenant isolation 404, metering increment.
 - STOP GATE: new RLS tables + metering → human-merge, not auto-merge.
+
+## Slice 8 — SDKs + rendered docs + sandbox (this PR)
+Everything is **generated from `docs/openapi.yaml`** (the source of truth) with local, offline
+tooling — no network calls and no LLM at generation or runtime. Design: `docs/sdk-generation-design.md`.
+- **Node/TS SDK** (`packages/sdk-node`, `@claimflow/sdk-node`): `src/generated/types.ts` from
+  `openapi-typescript` (pinned, lockfile-deterministic); thin hand-written `ClaimFlowClient` (API-key +
+  OAuth2 client-credentials with token caching, `Idempotency-Key` helper, typed `ClaimFlowError` that
+  parses **both** problem+json and the `{errors,meta}` envelope). New pnpm workspace member.
+- **Python SDK** (`sdks/python/claimflow`): `models.py` (pydantic v2) from `datamodel-code-generator`
+  (pinned `0.61.0`, `--formatters builtin` → reproducible, no black/isort variance); thin
+  `requests`-based `ClaimFlowClient` mirroring the TS ergonomics.
+- **Rendered docs** (`docs/api/index.html`): vendored `redoc.standalone.js` + spec inlined as JSON —
+  fully self-contained, opens offline, **zero external calls** (no CDN, no Google Fonts).
+- **Regenerable guarantee:** `scripts/generate-sdks.sh` regenerates all three; `--check` re-runs +
+  `git diff --exit-code` so SDK/doc drift from the spec fails CI. New `sdk-drift` CI job (Node + Python).
+- **No-internals enforcement (hard rule):** a test asserts the generated artifacts declare none of the
+  three system internals (`deterministicScore`/`mlQualityScore`/`fixReportMd`) as fields and reference
+  no `/internal` path, while the closed `ClaimScoreResult`/`AuditSummary` types remain present — proof
+  the leak can't reappear via the SDK layer. (Downstream of the spec's own no-leakage drift check.)
+- **Sandbox (synthetic data ONLY):** `scripts/seed-sandbox.sh` (idempotent, validated against a
+  migrated DB) seeds a `sandbox` tenant + facility + owner, one API key + one OAuth client (fixed,
+  clearly-synthetic credentials), and 5 `SANDBOX-…` claims — no real PHI. `docs/sandbox-quickstart.md`
+  walks token/key → score → batch → poll in both SDKs + raw curl.
+- Tests: Node SDK 11 (client behaviour: auth headers, idempotency, OAuth caching, both error shapes;
+  + no-internals); Python SDK 6 (same surface). Full gate green: typecheck all; sdk-node 11; rule-engine
+  300; shared 6; sync-agent 10; api 47 (+112 integration skipped without DB).
+- **Merge classification:** additive (new packages/generated artifacts/docs/seed script; no change to
+  auth/tenant-isolation/rate-limiting/PHI/migrations) → auto-merge eligible once CI is green. **EXCEPT
+  publishing to PyPI/npm, which is a STOP GATE — built and presented; you publish.**
 
 ## Cross-cutting follow-ups / debts
 

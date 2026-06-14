@@ -4,3 +4,4 @@ packages:
   - 'packages/api'
   - 'packages/web'
   - 'packages/sync-agent'
+  - 'packages/sdk-node'
