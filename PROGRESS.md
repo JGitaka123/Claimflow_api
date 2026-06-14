@@ -22,8 +22,8 @@ Status legend: ✅ done · 🟡 in progress · ⛔ blocked · ⬜ not started
 | OAS-A | Error-format consistency (problem+json for integrators) | ✅ done | #15 (merged) |
 | OAS-B | Audit-detail leak — field-level split | ✅ done | #16 (merged) |
 | 1 | Async `POST /v1/claims/batch` (bulk submit + score) | 🟡 implemented (STOP GATE) — awaiting your merge | _this PR_ |
-| 8 | Developer experience: SDKs + rendered docs + sandbox (from openapi.yaml) | 🟡 implemented — auto-merge eligible (publish = STOP GATE) | _this PR_ |
-| 9 | Compliance scaffolding (audit-log immutability, retention, no-PHI-in-CI, data-handling docs) | ⬜ not started | — |
+| 8 | Developer experience: SDKs + rendered docs + sandbox (from openapi.yaml) | ✅ done | #19 (merged) |
+| 9 | Compliance scaffolding (audit-log immutability, retention, no-PHI-in-CI, data-handling docs) | 🟡 implemented — auto-merge eligible (legal text = STOP GATE) | _this PR_ |
 | 7 | Observability + ops (dashboards/SLOs on 6d/6e) | ⬜ not started | — |
 
 ## Slice 1 — Async `POST /v1/claims/batch` (this PR, STOP GATE)
@@ -68,6 +68,38 @@ tooling — no network calls and no LLM at generation or runtime. Design: `docs/
 - **Merge classification:** additive (new packages/generated artifacts/docs/seed script; no change to
   auth/tenant-isolation/rate-limiting/PHI/migrations) → auto-merge eligible once CI is green. **EXCEPT
   publishing to PyPI/npm, which is a STOP GATE — built and presented; you publish.**
+
+## Slice 9 — Compliance scaffolding (this PR)
+- **Audit-log immutability:** `audit_trail` is already enforced at three layers
+  (DB trigger from `008` + RLS policy from `024` + privilege REVOKE from `023`) and proven by
+  `rls-isolation` (`audit_trail is append-only: insert allowed, update/delete denied`). The retention
+  job is designed AROUND this — it NEVER deletes from `audit_trail`; it writes INTO it.
+- **Configurable retention + audited purge job** (`services/retention-service.ts`, wired as a
+  `setInterval` on the privileged pool in `JobQueue` — same pattern as the webhook dispatcher):
+  - Purges only **operational** tables: expired `idempotency_keys`, terminal `claim_batches`/items
+    older than retention. The audit log is never touched.
+  - Writes **one immutable `audit_trail` row per tenant per cycle** with `action='RETENTION_PURGE_RUN'`
+    and per-category counts + cutoffs + retention windows in `detail_json` — purges are themselves auditable.
+  - Configurable via env: `RETENTION_INTERVAL_MS` (default 1h; `0` disables), `IDEMPOTENCY_KEY_RETENTION_HOURS`
+    (default 24), `CLAIM_BATCH_RETENTION_DAYS` (default 90). **Defaults are non-authoritative placeholders.**
+  - Migration `029` extends the `audit_action` enum with `RETENTION_PURGE_RUN`.
+- **No-PHI-in-CI guard** (`scripts/check-no-phi.sh`, new `no-phi` CI job): scans tests/fixtures/seeds for
+  Kenyan-shaped PHI (mobile +254/07, SHA `CR\d{9}`, bare 8-digit national IDs), allowlisting established
+  synthetic markers and obvious placeholders (sequential / repeated-digit / UUID-shaped) and excluding
+  UUID-embedded 8-digit hex segments. Verified positive: catches real-looking `+254712555432` and `24681357`;
+  verified negative: passes on the entire current tree (98 files).
+- **Data-handling docs** (`docs/data-handling.md`): technical sections (data categories, controls,
+  immutability + retention mechanism, no-PHI guarantee, control-plane sync) are authoritative. **All
+  legal substance — lawful basis, binding retention periods, DPA, POPIA/cross-border, breach procedure,
+  DPIA sign-off, ODPC registration — left as explicit `TODO (LEGAL — Jesse/DPO)` placeholders.**
+- Tests: 3 new retention integration tests (per-tenant idempotency-key purge + per-tenant audit row;
+  terminal-batch retention with cascade; no-op cycle writes no audit row). API integration suite green
+  at 162 tests; typecheck all green.
+- **Merge classification:** additive (new service, new operational-table purge, new CI guard, new
+  enum value, new docs). Does NOT modify the immutable `audit_trail` mechanism (008's trigger is
+  unchanged), tenant isolation, auth, rate-limiting, or PHI handling → auto-merge eligible once CI
+  is green. **STOP GATE: legal text in `docs/data-handling.md` §7 — engineering does not draft it;
+  Jesse + DPO must.**
 
 ## Cross-cutting follow-ups / debts
 
