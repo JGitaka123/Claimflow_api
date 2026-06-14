@@ -74,6 +74,15 @@ const baseConfigSchema = z.object({
   CIRCUIT_BREAKER_RESET_MS: z.coerce.number().int().positive().default(300000),
   REGISTRY_CACHE_TTL_HOURS: z.coerce.number().int().min(1).default(24),
 
+  // Item 9 — compliance scaffolding (configurable retention purge of operational
+  // tables). The audit_trail itself is NEVER purged (008's trigger blocks all
+  // UPDATE/DELETE on every role; rls-isolation proves it). Defaults below are
+  // NON-AUTHORITATIVE PLACEHOLDERS — binding retention periods are a legal
+  // determination (Jesse / DPO). Set RETENTION_INTERVAL_MS=0 to disable the cycle.
+  RETENTION_INTERVAL_MS: z.coerce.number().int().min(0).default(3_600_000),
+  IDEMPOTENCY_KEY_RETENTION_HOURS: z.coerce.number().int().min(1).default(24),
+  CLAIM_BATCH_RETENTION_DAYS: z.coerce.number().int().min(1).default(90),
+
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
 

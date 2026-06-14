@@ -70,19 +70,31 @@ These are implemented and enforced in code/CI today:
 
 ## 4. Audit immutability & retention (factual — authoritative)
 
-- **Immutability:** accountability tables are append-only at the database level
-  (see migration `024` policies / append-only enforcement). The purge job (below)
-  is the **only** sanctioned deletion path, it deletes by age only, and it **writes
-  its own audit record** of every purge run (counts per table, cutoff timestamp,
-  retention window) so deletions are themselves auditable.
-- **Retention configuration:** retention windows are operator-configurable via env
-  (see the retention config keys). The purge job runs on a schedule and removes
-  only records older than the configured window for each category.
+- **Immutability:** the `audit_trail` table is append-only at **three layers** —
+  (1) a database trigger (`prevent_audit_trail_modification`, migration `008`)
+  raises on every `UPDATE`/`DELETE`, (2) RLS policies (migration `024`) grant only
+  `SELECT`/`INSERT`, and (3) the app role has `UPDATE`/`DELETE` revoked at the
+  privilege level (migration `023`). Proven by `rls-isolation.integration.test.ts`
+  which asserts every mutation is rejected.
+- **The retention purge NEVER deletes from `audit_trail`.** The trigger is
+  absolute; the purge job only deletes from **operational tables**
+  (`idempotency_keys` past their `expires_at`/retention floor, terminal
+  `claim_batches`/`claim_batch_items` past retention). It writes **one
+  immutable `audit_trail` row per tenant per cycle** with
+  `action='RETENTION_PURGE_RUN'` and a `detail_json` carrying the retention
+  windows, cutoff timestamps, and per-category deletion counts — so the deletions
+  are themselves auditable, and the audit log's append-only guarantee is intact.
+- **Retention configuration** (operator-set via env; see `packages/api/src/config.ts`):
+  - `RETENTION_INTERVAL_MS` (default `3_600_000` = 1h; set `0` to disable).
+  - `IDEMPOTENCY_KEY_RETENTION_HOURS` (default `24`).
+  - `CLAIM_BATCH_RETENTION_DAYS` (default `90`).
+  The cycle is a `setInterval` on the privileged pool (same pattern as the
+  webhook dispatcher) so it spans tenants per run.
 - **`TODO (LEGAL — Jesse/DPO):` the actual retention *periods*** (how many days/years
   each data category must be kept, and the minimum/maximum mandated by SHA/SHIF
-  rules and the Data Protection Act) are a legal determination and are **not** set
-  here. Engineering ships configurable defaults flagged as **non-authoritative
-  placeholders**; legal must confirm the binding values before production.
+  rules and the Data Protection Act) are a legal determination. Engineering ships
+  the configurable defaults above as **non-authoritative placeholders**; legal
+  must confirm the binding values before production.
 
 ## 5. No-PHI-in-repo guarantee (factual — authoritative)
 

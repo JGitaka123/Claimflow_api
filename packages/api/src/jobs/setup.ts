@@ -7,6 +7,7 @@ import type { Config } from '../config.js';
 import { getTenantDb, runWithTenant } from '../db/client.js';
 import { createExportService } from '../services/export-service.js';
 import { createWebhookService, type WebhookService } from '../services/webhook-service.js';
+import { createRetentionService, type RetentionService } from '../services/retention-service.js';
 import { createAuditPipelineService } from '../workflows/audit-pipeline.js';
 
 const WEBHOOK_DISPATCH_INTERVAL_MS = 30_000;
@@ -229,9 +230,11 @@ export class JobQueueManager {
   private readonly auditPipeline: ReturnType<typeof createAuditPipelineService>;
   private readonly exportService: ReturnType<typeof createExportService>;
   private readonly webhookService: WebhookService;
+  private readonly retentionService: RetentionService;
   private started = false;
   private workersRegistered = false;
   private webhookDispatchTimer: NodeJS.Timeout | null = null;
+  private retentionTimer: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly pool: Pool,
@@ -251,12 +254,23 @@ export class JobQueueManager {
     this.auditPipeline = createAuditPipelineService(tenantDb, this.logger, this.config);
     this.exportService = createExportService(tenantDb, this.logger, this.config);
     this.webhookService = createWebhookService(tenantDb, this.logger);
+    // Item 9: retention purge runs on the privileged pool (spans tenants in one
+    // cycle, writes a per-tenant audit_trail row of what it deleted).
+    this.retentionService = createRetentionService({
+      pool: this.pool,
+      config: this.config,
+      logger: this.logger,
+    });
   }
 
   async stop(): Promise<void> {
     if (this.webhookDispatchTimer) {
       clearInterval(this.webhookDispatchTimer);
       this.webhookDispatchTimer = null;
+    }
+    if (this.retentionTimer) {
+      clearInterval(this.retentionTimer);
+      this.retentionTimer = null;
     }
 
     if (!this.started) {
@@ -632,6 +646,7 @@ export class JobQueueManager {
     await this.boss.start();
     await this.registerWorkers();
     this.startWebhookDispatcher();
+    this.startRetentionPurger();
     this.started = true;
 
     this.logger.info('pg-boss queue started');
@@ -650,6 +665,30 @@ export class JobQueueManager {
 
     // Don't keep the process alive solely for webhook polling.
     this.webhookDispatchTimer.unref?.();
+  }
+
+  /**
+   * Item 9 retention purge — runs every RETENTION_INTERVAL_MS on the privileged
+   * pool. Each cycle purges idempotency_keys past TTL and terminal claim_batches
+   * past retention, then writes one audit_trail row per tenant summarising the
+   * deletes (the audit_trail is never purged — 008's trigger is absolute).
+   * Set RETENTION_INTERVAL_MS=0 to disable entirely (no timer armed).
+   */
+  private startRetentionPurger(): void {
+    if (this.retentionTimer) {
+      return;
+    }
+    const intervalMs = this.config.RETENTION_INTERVAL_MS;
+    if (intervalMs <= 0) {
+      this.logger.info('retention purge disabled (RETENTION_INTERVAL_MS=0)');
+      return;
+    }
+    this.retentionTimer = setInterval(() => {
+      this.retentionService
+        .runPurgeCycle()
+        .catch((error) => this.logger.warn({ err: error }, 'retention purge cycle failed'));
+    }, intervalMs);
+    this.retentionTimer.unref?.();
   }
 
   private async registerWorkers(): Promise<void> {
