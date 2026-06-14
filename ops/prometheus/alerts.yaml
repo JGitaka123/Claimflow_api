@@ -1,0 +1,102 @@
+# ClaimFlow — Prometheus alerting rules (item 7).
+#
+# Drop this into your Prometheus rule files (e.g. /etc/prometheus/rules/) and
+# point alertmanager at the team channel. Thresholds are starting points — tune
+# per deployment. The metric names match what GET /metrics exposes today
+# (packages/api/src/plugins/metrics.ts).
+#
+# Coverage: the brief's explicit asks (metering fail-open + auth/RLS anomalies)
+# plus the supporting invariants (DB up, outbox backlog, queue stalls).
+
+groups:
+  - name: claimflow.security
+    rules:
+      # Any RLS denial is alert-worthy: it is either a tenant-isolation bug or
+      # an attack probe. The rls-guard test prevents the bug class from
+      # shipping; this alert catches the runtime occurrence either way.
+      - alert: ClaimflowRlsDenial
+        expr: increase(claimflow_rls_denials_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Row-level security policy violation observed
+          description: |
+            A request triggered a Postgres RLS denial in the last 5 minutes.
+            Investigate immediately — either a tenant-isolation bug shipped, or
+            a credential is probing across tenants.
+
+      # Spike in any single auth-failure kind. Credential stuffing usually
+      # spikes 'password' / 'api_key' / 'oauth_client'; lockouts spike 'locked'.
+      - alert: ClaimflowAuthFailureSpike
+        expr: sum by (kind) (rate(claimflow_auth_failures_total[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Auth failure spike for kind={{ $labels.kind }}
+          description: |
+            >1 auth failure/sec sustained for 5 minutes on credential kind
+            "{{ $labels.kind }}". Likely credential stuffing or a leaked key.
+            Check usage_counters by principal_id and consider revoking.
+
+  - name: claimflow.metering
+    rules:
+      # The fail-open counter MUST stay flat in steady state. Any sustained
+      # increase means the counter store is degraded and billing data is being
+      # lost (privileged-pool usage_drops rows still record what couldn't be
+      # metered, for reconciliation).
+      - alert: ClaimflowMeteringFailOpen
+        expr: increase(claimflow_metering_fail_open_total[10m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Metering store fail-open detected
+          description: |
+            Requests are being allowed through unmetered because the counter
+            store is erroring. Inspect usage_drops for the affected tenants;
+            check Postgres for the usage_counters write path.
+
+  - name: claimflow.platform
+    rules:
+      - alert: ClaimflowDbDown
+        expr: claimflow_db_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Postgres is unreachable from the API
+          description: claimflow_db_up has been 0 for 1m. Check Postgres and the API pool.
+
+      - alert: ClaimflowOutboxBacklog
+        expr: claimflow_outbox_unpublished_total > 1000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Webhook outbox backlog > 1000 for 10m
+          description: The webhook dispatcher is falling behind. Check the dispatcher loop and downstream receivers.
+
+      - alert: ClaimflowQueueFailedJobs
+        expr: claimflow_queue_jobs_total{state="failed"} > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: pg-boss has failed jobs in queue
+          description: One or more background jobs failed terminally. Inspect via /metrics and the API logs.
+
+      # SLO target on the 6d metering hot path: 95% of requests under 250ms.
+      # Adjust the route filter for your own SLO breakdown.
+      - alert: ClaimflowHttpLatencySloBreached
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le, route) (rate(claimflow_http_request_duration_ms_bucket[5m]))
+          ) > 250
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: p95 latency > 250ms on {{ $labels.route }}
+          description: 5m p95 latency above the 250ms SLO target for 10 minutes.

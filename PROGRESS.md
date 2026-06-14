@@ -22,10 +22,10 @@ Status legend: ✅ done · 🟡 in progress · ⛔ blocked · ⬜ not started
 | OAS-A | Error-format consistency (problem+json for integrators) | ✅ done | #15 (merged) |
 | OAS-B | Audit-detail leak — field-level split | ✅ done | #16 (merged) |
 | 1 | Async `POST /v1/claims/batch` (bulk submit + score) | ✅ done | #17 (merged) |
-| 1f | Batch durability + rate-limit amplification fixes | 🟡 implemented (STOP GATE) — _this PR_ | _this PR_ |
+| 1f | Batch durability + rate-limit amplification fixes | ✅ done | #18 (merged) |
 | 8 | Developer experience: SDKs + rendered docs + sandbox (from openapi.yaml) | ✅ done | #19 (merged) |
-| 9 | Compliance scaffolding (audit-log immutability, retention, no-PHI-in-CI, data-handling docs) | 🟡 implemented — auto-merge eligible (legal text = STOP GATE) | #20 (open) |
-| 7 | Observability + ops (dashboards/SLOs on 6d/6e) | ⬜ not started | — |
+| 9 | Compliance scaffolding (audit-log immutability, retention, no-PHI-in-CI, data-handling docs) | ✅ done | #20 (merged) |
+| 7 | Observability + ops (log context, anomaly counters, ready-probe, tenant usage view, Prometheus alerts) | 🟡 implemented — auto-merge eligible | _this PR_ |
 
 ## Slice 1 — Async `POST /v1/claims/batch` (this PR, STOP GATE)
 - `POST /v1/claims/batch` (≤200 FHIR claims; `claim:create`; `Idempotency-Key`) → **202** `{ batchId, … }`;
@@ -116,6 +116,47 @@ tooling — no network calls and no LLM at generation or runtime. Design: `docs/
   unchanged), tenant isolation, auth, rate-limiting, or PHI handling → auto-merge eligible once CI
   is green. **STOP GATE: legal text in `docs/data-handling.md` §7 — engineering does not draft it;
   Jesse + DPO must.**
+
+## Slice 7 — Observability + ops (this PR)
+The brief: structured logging, tracing, health/readiness, dashboards/SLOs on 6d/6e metering,
+alert on `claimflow_metering_fail_open_total` and auth/RLS anomalies. Tenant-facing usage views
+must go through the app role under RLS; `usage_drops` is owner-only and any tenant-facing read
+of it must filter by `tenant_id` explicitly.
+- **Structured logging context** (`packages/api/src/logging/context.ts` + pino `mixin` in
+  `server.ts`): a separate AsyncLocalStorage (deliberately NOT touching the security-critical
+  tenant-binding store in `db/client.ts`). The tenant plugin enters BOTH stores at the same hook,
+  so every pino line emitted during a request automatically carries `requestId` / `tenantId` /
+  `userId` / `principalId` / `principalKind` (`jwt` | `api_key` | `oauth_client`) — no per-call
+  threading required.
+- **Real `/health/ready`** — pings the privileged pool with a bounded `SELECT 1` and returns 503
+  with `{ status:'not_ready', checks:{ db:'fail' } }` on failure. `/health` stays a cheap liveness
+  probe (no I/O).
+- **Anomaly counters** at `/metrics`:
+  - `claimflow_auth_failures_total{kind}` — labels `password|mfa|api_key|oauth_client|locked`.
+    Bumped at each existing failure site (auth-service routes for password/locked/mfa, auth
+    plugin for API-key/OAuth-client). No audit_trail spam — counters only.
+  - `claimflow_rls_denials_total` — incremented by the error handler when the Postgres error
+    matches `row-level security|new row violates row-level security|permission denied for
+    (table|relation)`. Any non-zero rate is alert-worthy.
+- **Cross-service request-id propagation** (`integrations/ml-client.ts`): outbound ML requests
+  carry `x-request-id` sourced from the log context — minimal correlation across the only network
+  boundary in the system, without an OpenTelemetry runtime.
+- **Tenant-facing `GET /v1/usage`** (`routes/usage.ts`): the calling tenant's own metering view
+  (counters + drops, last 24h). `usage_counters` is read via the **app role under RLS**
+  (`getTenantDb`); `usage_drops` is owner-only so the query is **explicitly filtered by
+  `tenant_id = $current`** per the brief's rule. The cross-tenant `/metrics` aggregate stays
+  gated by `METRICS_AUTH_TOKEN`.
+- **Prometheus alert rules** (`ops/prometheus/alerts.yaml`): committed config that ops scrapes;
+  covers the brief's required alerts (RLS denial, auth-failure spike, metering fail-open) plus
+  DB down, outbox backlog, queue failures, and a p95-latency SLO. No Grafana dashboard JSON
+  shipped (deferred — ops team owns dashboard UX).
+- openapi.yaml gains `/v1/usage` (drift check green); SDKs regenerated.
+- Tests: 4 new log-context unit tests; 4 new observability tests (new counters in /metrics
+  payload, `api_key` failure bumps counter on bad key, `/health/ready` 503 on broken DB,
+  `/health` still 200). Full gate green: typecheck all; new tests +8; existing suite unchanged.
+- **Merge classification:** additive — new logging helper, new counters, new readiness check,
+  new tenant-facing route, new ops config. No change to auth, tenant isolation, rate-limiting,
+  PHI handling, or migrations → auto-merge eligible once CI is green.
 
 ## Cross-cutting follow-ups / debts
 

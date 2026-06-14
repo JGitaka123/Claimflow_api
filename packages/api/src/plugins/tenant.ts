@@ -2,6 +2,7 @@ import fp from 'fastify-plugin';
 import { DomainError, ErrorCode } from '@claimflow/shared';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { enterTenantContext } from '../db/client.js';
+import { enterLogContext } from '../logging/context.js';
 
 const PUBLIC_PATHS = new Set([
   '/health',
@@ -62,6 +63,23 @@ const tenantPlugin: FastifyPluginAsync = async (fastify) => {
     // query (via getTenantDb) runs under RLS with app.current_tenant set. The
     // route handler runs in a continuation of this hook's context.
     enterTenantContext(request.user.tenantId);
+    // Item 7: also bind log context so every pino line emitted during this
+    // request automatically carries tenantId/userId/principalId/requestId via
+    // the logContextMixin wired in server.ts. OAuth tokens are folded into
+    // `request.apiKey` with id `oauth:<clientId>` (see plugins/auth.ts).
+    const apiKeyId = request.apiKey?.id;
+    const principalKind: 'jwt' | 'api_key' | 'oauth_client' = apiKeyId
+      ? apiKeyId.startsWith('oauth:')
+        ? 'oauth_client'
+        : 'api_key'
+      : 'jwt';
+    enterLogContext({
+      requestId: request.id,
+      tenantId: request.user.tenantId,
+      userId: request.user.userId,
+      principalKind,
+      ...(apiKeyId ? { principalId: apiKeyId } : {}),
+    });
   });
 };
 

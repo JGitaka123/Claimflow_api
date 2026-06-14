@@ -1042,6 +1042,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Caller tenant's metering view (last 24h)
+         * @description Per-window request counts and metering drops for the calling tenant only. usage_counters is read on the app role under RLS; usage_drops (owner-only table) is filtered explicitly by tenant_id. Cross-tenant aggregates live at /metrics under METRICS_AUTH_TOKEN — this is the tenant-safe view.
+         */
+        get: operations["tenantUsage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3168,6 +3188,26 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Top failures */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnvelopeObject"];
+                };
+            };
+        };
+    };
+    tenantUsage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tenant usage summary */
             200: {
                 headers: {
                     [name: string]: unknown;

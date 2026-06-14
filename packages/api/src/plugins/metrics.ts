@@ -52,9 +52,25 @@ export class MetricsRegistry {
   // counter store errored. A non-zero / rising value signals a counter-store
   // outage or a bypass probe — surfaced at /metrics for alerting.
   private meteringFailOpenTotal = 0;
+  // Item 7: anomaly counters for alerting.
+  // - Auth failures, labelled by kind: 'password' | 'mfa' | 'api_key' |
+  //   'oauth_client' | 'locked'. Bumped at each existing failure point so
+  //   alertmanager can fire on spikes (credential stuffing, key leakage probes).
+  // - RLS denials: Postgres row-level-security violations bubbled through the
+  //   error handler. Any non-zero rate is an alert-worthy invariant breach.
+  private readonly authFailuresByKind = new Map<string, number>();
+  private rlsDenialsTotal = 0;
 
   recordMeteringFailOpen(): void {
     this.meteringFailOpenTotal += 1;
+  }
+
+  recordAuthFailure(kind: 'password' | 'mfa' | 'api_key' | 'oauth_client' | 'locked'): void {
+    this.authFailuresByKind.set(kind, (this.authFailuresByKind.get(kind) ?? 0) + 1);
+  }
+
+  recordRlsDenial(): void {
+    this.rlsDenialsTotal += 1;
   }
 
   recordRequest(method: string, route: string, statusCode: number, durationMs: number): void {
@@ -145,6 +161,16 @@ export class MetricsRegistry {
     lines.push('# HELP claimflow_metering_fail_open_total Requests allowed through unmetered due to a counter-store error.');
     lines.push('# TYPE claimflow_metering_fail_open_total counter');
     lines.push(`claimflow_metering_fail_open_total ${this.meteringFailOpenTotal}`);
+
+    lines.push('# HELP claimflow_auth_failures_total Authentication failures by credential kind.');
+    lines.push('# TYPE claimflow_auth_failures_total counter');
+    for (const [kind, count] of [...this.authFailuresByKind.entries()].sort(([l], [r]) => l.localeCompare(r))) {
+      lines.push(`claimflow_auth_failures_total{kind="${escapeLabelValue(kind)}"} ${count}`);
+    }
+
+    lines.push('# HELP claimflow_rls_denials_total Row-level-security policy violations.');
+    lines.push('# TYPE claimflow_rls_denials_total counter');
+    lines.push(`claimflow_rls_denials_total ${this.rlsDenialsTotal}`);
 
     lines.push('# HELP claimflow_claims_total Claims grouped by status.');
     lines.push('# TYPE claimflow_claims_total gauge');

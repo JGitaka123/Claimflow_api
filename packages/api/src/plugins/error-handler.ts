@@ -128,6 +128,16 @@ const errorHandlerPlugin: FastifyPluginAsync = async (fastify) => {
       return;
     }
 
+    // Item 7: detect Postgres row-level-security policy violations and bump the
+    // anomaly counter so alerts can fire on any non-zero rate (RLS denials are
+    // always alert-worthy — they indicate either a tenant-isolation bug or an
+    // attack probe). Pattern covers both write-side ("new row violates ... policy")
+    // and the role-level "permission denied" wording.
+    const message = String((error as { message?: unknown }).message ?? '');
+    if (/row-level security|new row violates row-level security|permission denied for (table|relation)/i.test(message)) {
+      fastify.metricsRegistry.recordRlsDenial();
+    }
+
     request.log.error({ err: error }, 'Unhandled API error');
 
     send(request, reply, 500, [

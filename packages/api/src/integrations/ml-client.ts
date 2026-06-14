@@ -1,4 +1,5 @@
 import { DomainError, ErrorCode, type DocProcessingRoute, type DocumentType } from '@claimflow/shared';
+import { currentLogContext } from '../logging/context.js';
 
 export interface MlProcessDocumentRequest {
   documentId: string;
@@ -88,11 +89,16 @@ export class MlClient {
       const timeoutHandle = setTimeout(() => controller.abort(), this.timeoutMs);
 
       try {
+        // Item 7: propagate the caller's request id so ML-service logs can be
+        // correlated with API logs without a full OpenTelemetry stack. Pulled
+        // from the async-local log context entered by the tenant plugin.
+        const headers: Record<string, string> = { 'content-type': 'application/json' };
+        const reqId = currentLogContext().requestId;
+        if (reqId) headers['x-request-id'] = reqId;
+
         const response = await this.fetchImpl(url, {
           method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-          },
+          headers,
           body,
           signal: controller.signal,
         });
