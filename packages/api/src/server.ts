@@ -14,6 +14,7 @@ import healthRoutes from './routes/health.js';
 import metricsRoutes from './routes/metrics.js';
 import apiRoutes from './routes/index.js';
 import { sanitizeLogObject } from './logging/sanitizer.js';
+import { logContextMixin } from './logging/context.js';
 
 export interface BuildServerOptions {
   config?: Config;
@@ -25,6 +26,10 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
   const app = Fastify({
     logger: {
       level: config.LOG_LEVEL,
+      // Pino mixin: auto-inject request-scoped fields (tenantId, userId,
+      // principalId, requestId) into every log line, sourced from the
+      // AsyncLocalStorage entered in the tenant plugin (item 7).
+      mixin: logContextMixin,
       formatters: {
         log(object: Record<string, unknown>) {
           return sanitizeLogObject(object);

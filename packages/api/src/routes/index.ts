@@ -15,6 +15,7 @@ import caseRoutes from './cases.js';
 import apiKeyRoutes from './api-keys.js';
 import oauthRoutes from './oauth.js';
 import preauthorizationRoutes from './preauthorizations.js';
+import usageRoutes from './usage.js';
 
 const apiRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/v1', async () => ({
@@ -37,6 +38,7 @@ const apiRoutes: FastifyPluginAsync = async (fastify) => {
   await fastify.register(apiKeyRoutes);
   await fastify.register(oauthRoutes);
   await fastify.register(preauthorizationRoutes);
+  await fastify.register(usageRoutes);
 };
 
 export default fp(apiRoutes, {

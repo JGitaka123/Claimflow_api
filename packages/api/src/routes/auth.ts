@@ -43,13 +43,26 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
 
     const tenantId = TenantHeaderSchema.parse(tenantHeader);
 
-    const result = await authService.login({
-      tenantId,
-      email: body.email,
-      password: body.password,
-      ipAddress: request.ip,
-      userAgent: request.headers['user-agent'],
-    });
+    let result;
+    try {
+      result = await authService.login({
+        tenantId,
+        email: body.email,
+        password: body.password,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+      });
+    } catch (err) {
+      // Item 7: the lockout path throws UNAUTHORIZED with this message; tag the
+      // counter so alerts can fire on a spike (then re-raise unchanged).
+      if (err instanceof DomainError && err.code === ErrorCode.UNAUTHORIZED && /locked/i.test(err.message)) {
+        fastify.metricsRegistry.recordAuthFailure('locked');
+      }
+      throw err;
+    }
+    if ('kind' in result && result.kind === 'invalid_credentials') {
+      fastify.metricsRegistry.recordAuthFailure('password');
+    }
 
     reply.send({
       data: result,
@@ -62,12 +75,21 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/v1/auth/mfa/verify', async (request, reply) => {
     const body = MfaVerifySchema.parse(request.body ?? {});
 
-    const result = await authService.verifyMfa({
-      mfaToken: body.mfaToken,
-      code: body.code,
-      ipAddress: request.ip,
-      userAgent: request.headers['user-agent'],
-    });
+    let result;
+    try {
+      result = await authService.verifyMfa({
+        mfaToken: body.mfaToken,
+        code: body.code,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+      });
+    } catch (err) {
+      // Item 7: tag the failure for the auth-anomaly counter and re-raise.
+      if (err instanceof DomainError && err.code === ErrorCode.UNAUTHORIZED && /mfa/i.test(err.message)) {
+        fastify.metricsRegistry.recordAuthFailure('mfa');
+      }
+      throw err;
+    }
 
     reply.send({
       data: result,

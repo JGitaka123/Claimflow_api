@@ -35,6 +35,8 @@ const PRIVILEGED_POOL_ALLOWLIST = new Set([
   'routes/audit.ts', // constructs the background JobQueue (workers bind tenant per job)
   'routes/claims-batch.ts', // constructs the background JobQueue (workers bind tenant per job)
   'routes/metrics.ts', // deliberately cross-tenant aggregate counts (no PHI rows)
+  'routes/health.ts', // readiness probe runs `SELECT 1`; no tenant data touched
+  'routes/usage.ts', // tenant-facing usage view; usage_drops is owner-only — filtered by tenant_id explicitly
   'jobs/setup.ts', // background workers: bind their own per-job tenant context
   'plugins/usage-metering.ts', // fail-open drop telemetry only (error path; counts, no PHI)
 ]);

@@ -161,6 +161,7 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
     if (apiKeyToken) {
       const verified = await apiKeyService.verifyApiKey(apiKeyToken);
       if (!verified) {
+        fastify.metricsRegistry.recordAuthFailure('api_key');
         throw new DomainError(ErrorCode.UNAUTHORIZED, 'Invalid or expired API key');
       }
 
@@ -192,10 +193,16 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
     // type:'oauth_client'. They resolve tenant + scopes like an API key, and are
     // authorized by scope — never by a human role.
     if (peekTokenType(token) === 'oauth_client') {
-      const { context: oauthContext, scopes, clientId } = await authService.verifyOAuthAccessToken(token);
-      request.user = { ...oauthContext, role: oauthContext.role };
-      request.apiKey = { id: `oauth:${clientId}`, scopes: scopes as Permission[] };
-      return;
+      try {
+        const { context: oauthContext, scopes, clientId } = await authService.verifyOAuthAccessToken(token);
+        request.user = { ...oauthContext, role: oauthContext.role };
+        request.apiKey = { id: `oauth:${clientId}`, scopes: scopes as Permission[] };
+        return;
+      } catch (err) {
+        // Item 7: tag the failure for the auth-anomaly counter and re-raise.
+        fastify.metricsRegistry.recordAuthFailure('oauth_client');
+        throw err;
+      }
     }
 
     const context = await authService.verifyAccessToken(token);

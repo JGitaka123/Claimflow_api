@@ -920,6 +920,23 @@ paths:
       summary: Top rule-failure counts (aggregate; no rule internals)
       responses:
         "200": { description: Top failures, content: { application/json: { schema: { $ref: "#/components/schemas/EnvelopeObject" } } } }
+  # ---------------------------------------------------------------- Usage
+  /v1/usage:
+    get:
+      tags: [Ops]
+      operationId: tenantUsage
+      summary: Caller tenant's metering view (last 24h)
+      description: >-
+        Per-window request counts and metering drops for the calling tenant only.
+        usage_counters is read on the app role under RLS; usage_drops (owner-only
+        table) is filtered explicitly by tenant_id. Cross-tenant aggregates live
+        at /metrics under METRICS_AUTH_TOKEN — this is the tenant-safe view.
+      responses:
+        "200":
+          description: Tenant usage summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnvelopeObject" }
 
 components:
   securitySchemes:
