@@ -275,4 +275,43 @@ integrationDescribe('Async claim batch (pg-boss, real Postgres)', () => {
     );
     expect(Number(counter.rows[0]?.total)).toBe(2);
   });
+
+  it('charges the rate limiter ONE UNIT PER CLAIM (amplification guard)', { timeout: 30_000 }, async () => {
+    const s = await seed(pool!);
+    const res = await app!.inject({
+      method: 'POST',
+      url: '/v1/claims/batch',
+      headers: { authorization: s.authHeader },
+      payload: { claims: [fhirClaim(s.facilityId, 'w1'), fhirClaim(s.facilityId, 'w2'), fhirClaim(s.facilityId, 'w3')] },
+    });
+    expect(res.statusCode).toBe(202);
+    // The request-path limiter (route class 'default') charged 3 units for the one
+    // 3-claim submission, not 1 — so bulk can't bypass the per-minute claim ceiling.
+    const counter = await pool!.query<{ total: string }>(
+      `SELECT COALESCE(SUM(request_count),0)::text AS total
+         FROM usage_counters WHERE tenant_id = $1::uuid AND route_class = 'default'`,
+      [s.tenantId],
+    );
+    expect(Number(counter.rows[0]?.total)).toBe(3);
+  });
+
+  it('surfaces a stalled batch (non-terminal + no recent progress)', { timeout: 30_000 }, async () => {
+    const s = await seed(pool!);
+    const res = await app!.inject({
+      method: 'POST',
+      url: '/v1/claims/batch',
+      headers: { authorization: s.authHeader },
+      payload: { claims: [fhirClaim(s.facilityId, 's1')] },
+    });
+    const batchId = (res.json() as { data: { batchId: string } }).data.batchId;
+    // Force the batch into a non-terminal, idle state (simulate a crashed worker).
+    await pool!.query(
+      `UPDATE claim_batches SET status = 'PROCESSING', updated_at = now() - INTERVAL '10 minutes' WHERE id = $1::uuid`,
+      [batchId],
+    );
+    const status = await app!.inject({ method: 'GET', url: `/v1/claims/batch/${batchId}`, headers: { authorization: s.authHeader } });
+    const body = status.json() as { data: { status: string; stalled: boolean } };
+    expect(body.data.status).toBe('PROCESSING');
+    expect(body.data.stalled).toBe(true);
+  });
 });

@@ -22,9 +22,16 @@ const WINDOW_MS = 60_000;
 
 /**
  * Process one async claim-submission batch. Runs inside runWithTenant(tenantId),
- * so every DB op is on the claimflow_app role under RLS. Each claim is scored in
- * its own try/catch — a malformed claim fails ONLY its item, never the batch.
- * Each scored claim counts toward 6d usage metering (route class `batch`).
+ * so every DB op is on the claimflow_app role under RLS.
+ *
+ * Durability/resumability: the worker processes only items still in QUEUED status
+ * (read from the DB), so a crash/expiry + pg-boss retry RESUMES — already-SCORED
+ * or FAILED items are skipped (no duplicate scoring, no double metering). The
+ * terminal batch status and processed_count are recomputed from the rows, so the
+ * batch always converges to a terminal state rather than stranding in PROCESSING.
+ *
+ * Per-item try/catch: a malformed claim fails ONLY its item, never the batch.
+ * Each SUCCESSFULLY scored claim counts toward 6d usage metering (route `batch`).
  */
 export function createProcessClaimBatchHandler(deps: Deps) {
   const scoring = createScoringService(deps.tenantDb, deps.logger, deps.config);
@@ -38,11 +45,32 @@ export function createProcessClaimBatchHandler(deps: Deps) {
       [batchId],
     );
 
+    // Resume point: only the indexes still QUEUED. On a fresh run that's all of
+    // them; on a retry it's whatever hadn't reached a terminal state.
+    const pending = await deps.tenantDb.query<{ item_index: number }>(
+      `SELECT item_index FROM claim_batch_items
+        WHERE batch_id = $1::uuid AND status = 'QUEUED'
+        ORDER BY item_index ASC`,
+      [batchId],
+    );
+
     let scored = 0;
     let failed = 0;
 
-    for (let index = 0; index < claims.length; index += 1) {
-      const claim = claims[index] as ScoreClaimInput;
+    for (const { item_index: index } of pending.rows) {
+      const claim = claims[index] as ScoreClaimInput | undefined;
+      if (!claim) {
+        // Defensive: a QUEUED index with no payload (shouldn't happen) — mark failed.
+        await deps.tenantDb.query(
+          `UPDATE claim_batch_items SET status = 'FAILED', error_code = 'INTERNAL_ERROR',
+                  error_message = 'Missing claim payload', updated_at = now()
+            WHERE batch_id = $1::uuid AND item_index = $2`,
+          [batchId, index],
+        );
+        failed += 1;
+        continue;
+      }
+
       try {
         const outcome = await scoring.scoreClaim({
           tenantId,
@@ -51,8 +79,8 @@ export function createProcessClaimBatchHandler(deps: Deps) {
           input: claim,
         });
 
-        // Each scored claim counts toward usage metering (billing signal). Soft —
-        // the worker records but does not reject; the submit endpoint is rate-limited.
+        // Only a SUCCESSFULLY scored claim is metered (this line is unreachable if
+        // scoreClaim threw). Soft — record but never reject in the worker.
         await metering
           .recordAndCheck({
             tenantId,
@@ -83,17 +111,33 @@ export function createProcessClaimBatchHandler(deps: Deps) {
         failed += 1;
         deps.logger.warn({ batchId, index, code }, 'batch item failed (continuing)');
       }
-
-      await deps.tenantDb.query(
-        `UPDATE claim_batches SET processed_count = processed_count + 1, updated_at = now() WHERE id = $1::uuid`,
-        [batchId],
-      );
     }
 
-    const finalStatus = failed === 0 ? 'COMPLETED' : scored === 0 ? 'FAILED' : 'COMPLETED_WITH_ERRORS';
+    // Recompute progress + terminal status from the rows (retry-safe — independent
+    // of how many items THIS invocation processed).
+    const tally = await deps.tenantDb.query<{ total: string; terminal: string; scored: string }>(
+      `SELECT count(*)::text AS total,
+              count(*) FILTER (WHERE status IN ('SCORED','FAILED'))::text AS terminal,
+              count(*) FILTER (WHERE status = 'SCORED')::text AS scored
+         FROM claim_batch_items WHERE batch_id = $1::uuid`,
+      [batchId],
+    );
+    const row = tally.rows[0];
+    const total = Number(row?.total ?? 0);
+    const terminal = Number(row?.terminal ?? 0);
+    const scoredTotal = Number(row?.scored ?? 0);
+    const allDone = terminal === total;
+    const finalStatus = !allDone
+      ? 'PROCESSING'
+      : scoredTotal === total
+        ? 'COMPLETED'
+        : scoredTotal === 0
+          ? 'FAILED'
+          : 'COMPLETED_WITH_ERRORS';
+
     await deps.tenantDb.query(
-      `UPDATE claim_batches SET status = $2, updated_at = now() WHERE id = $1::uuid`,
-      [batchId, finalStatus],
+      `UPDATE claim_batches SET processed_count = $2, status = $3, updated_at = now() WHERE id = $1::uuid`,
+      [batchId, terminal, finalStatus],
     );
 
     return { status: finalStatus, scored, failed };

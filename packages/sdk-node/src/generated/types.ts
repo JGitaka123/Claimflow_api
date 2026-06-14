@@ -1363,6 +1363,9 @@ export interface components {
             totalClaims: number;
             processedCount: number;
             createdAt?: string;
+            updatedAt?: string;
+            /** @description True when a non-terminal batch has made no progress for a while (worker stalled); a retry resumes it. */
+            stalled: boolean;
             items: components["schemas"]["ClaimBatchItem"][];
         };
         EnvelopeClaimBatchStatus: {

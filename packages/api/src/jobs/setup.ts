@@ -320,10 +320,20 @@ export class JobQueueManager {
   }
 
   /** Enqueue an async claim-submission batch. The batch + item rows are created
-   *  by the route (under RLS); this just dispatches the worker job. */
+   *  by the route (under RLS); this just dispatches the worker job.
+   *  Durability: pg-boss defaults to retryLimit 0, so a crash/expiry would strand
+   *  the batch. We set retries + backoff; the worker is resumable (processes only
+   *  still-QUEUED items), so a retry continues rather than re-scoring. */
   async enqueueClaimBatch(data: ClaimBatchJobData): Promise<string> {
     await this.ensureStarted();
-    const jobId = await this.boss.send(PROCESS_CLAIM_BATCH_JOB, data);
+    const jobId = await this.boss.send(PROCESS_CLAIM_BATCH_JOB, data, {
+      retryLimit: 5,
+      retryDelay: 30,
+      retryBackoff: true,
+      // Allow a large batch ample time before pg-boss marks the active job expired
+      // (an expiry is treated as a failure and triggers a retry).
+      expireInMinutes: 30,
+    });
     if (!jobId) {
       throw new DomainError(ErrorCode.INTERNAL_ERROR, 'Failed to enqueue claim-batch job');
     }

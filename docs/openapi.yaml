@@ -1345,13 +1345,15 @@ components:
       additionalProperties: false
     ClaimBatchStatus:
       type: object
-      required: [batchId, status, totalClaims, processedCount, items]
+      required: [batchId, status, totalClaims, processedCount, stalled, items]
       properties:
         batchId: { type: string, format: uuid }
         status: { type: string, enum: [QUEUED, PROCESSING, COMPLETED, COMPLETED_WITH_ERRORS, FAILED] }
         totalClaims: { type: integer }
         processedCount: { type: integer }
         createdAt: { type: string }
+        updatedAt: { type: string }
+        stalled: { type: boolean, description: "True when a non-terminal batch has made no progress for a while (worker stalled); a retry resumes it." }
         items: { type: array, items: { $ref: "#/components/schemas/ClaimBatchItem" } }
       additionalProperties: false
     EnvelopeClaimBatchStatus:

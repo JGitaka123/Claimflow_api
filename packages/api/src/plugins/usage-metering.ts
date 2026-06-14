@@ -36,6 +36,21 @@ function requestPath(request: FastifyRequest): string {
   return rawUrl.split('?')[0] ?? rawUrl;
 }
 
+/**
+ * Metering weight for a request. POST /v1/claims/batch charges one unit per claim
+ * (Fastify has already parsed the body by the preHandler stage); everything else
+ * is one unit. A malformed body falls back to 1 (the route's own validation will
+ * reject it). Capped defensively at a sane ceiling.
+ */
+function batchClaimWeight(request: FastifyRequest): number {
+  if (request.method !== 'POST' || requestPath(request) !== '/v1/claims/batch') {
+    return 1;
+  }
+  const body = request.body as { claims?: unknown } | undefined;
+  const count = Array.isArray(body?.claims) ? body.claims.length : 0;
+  return count > 0 ? Math.min(count, 1000) : 1;
+}
+
 interface UsageMeteringOptions {
   config: Config;
 }
@@ -64,6 +79,12 @@ const usageMeteringPlugin: FastifyPluginAsync<UsageMeteringOptions> = async (fas
     const isMachine = principalId !== null;
     const fallback = isMachine ? options.config.API_KEY_RATE_LIMIT_RPM : options.config.TENANT_RATE_LIMIT_RPM;
 
+    // Rate-limit amplification guard: POST /v1/claims/batch carries up to
+    // MAX_CLAIMS_PER_BATCH claims in one HTTP call. Charge it ONE UNIT PER CLAIM so
+    // a tenant's per-minute claim ceiling is consistent across single + bulk paths
+    // (otherwise a 200-claim batch would cost the same as a single submission).
+    const weight = batchClaimWeight(request);
+
     let decision;
     try {
       const limit = await metering.resolveLimit(tenantId, principalId, 'default', fallback);
@@ -73,6 +94,7 @@ const usageMeteringPlugin: FastifyPluginAsync<UsageMeteringOptions> = async (fas
         routeClass: 'default',
         limit,
         windowMs: WINDOW_MS,
+        weight,
       });
     } catch (error) {
       // LOUD fail-open. Metering/limiting is best-effort: a counter-store failure

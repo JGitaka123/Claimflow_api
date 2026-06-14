@@ -399,6 +399,11 @@ class ClaimBatchStatus(BaseModel):
     totalClaims: int
     processedCount: int
     createdAt: str | None = None
+    updatedAt: str | None = None
+    stalled: bool = Field(
+        ...,
+        description="True when a non-terminal batch has made no progress for a while (worker stalled); a retry resumes it.",
+    )
     items: list[ClaimBatchItem]
 
 
